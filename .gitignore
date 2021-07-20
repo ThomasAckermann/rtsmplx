@@ -130,6 +130,9 @@ dmypy.json
 
 
 
-# specific directories
+# specific directories and files
 ./models/
 models/
+notebooks/
+landmarks.ipynb
+portrait.jpg
