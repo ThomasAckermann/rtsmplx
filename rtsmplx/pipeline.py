@@ -1,8 +1,12 @@
 import smplx
 import smplx.utils
+import smplx.landmarks
+
+
+def main():
+    pass
 
 
 if __name__ == "__main__":
-    model = utils.create_model("../models")
-    utils.plot_model(model)
-    print(model)
+    main()
+    print("Done")
