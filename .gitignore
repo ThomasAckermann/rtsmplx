@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+
+# specific directories and files
+./models/
+models/
+notebooks/
+landmarks.ipynb
+portrait.jpg
