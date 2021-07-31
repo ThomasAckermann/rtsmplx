@@ -8,7 +8,7 @@ class Landmarks:
     Landmark class is used to combine landmarks for body, head and hands
     """
     def __init__(self, image, head=False, hands=False, debug=False):
-        self.image = image
+        self.image = image.numpy()
         self.face_lm = None
         self.hand_lm = None
         self.body_lm = self.body_landmarks(debug=False)
@@ -37,12 +37,5 @@ class Landmarks:
         mp_pose = mp.solutions.pose
         with mp_pose.Pose(static_image_mode=True, model_complexity=2, min_detection_confidence=0.5) as pose:
             results = pose.process(cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB))
-            if debug:
-                # Draw pose landmarks on the image.
-                annotated_image = self.image.copy()
-                mp_drawing.draw_landmarks(annotated_image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-                cv2.imwrite('annotated_image.png', annotated_image)
-                # Plot pose world landmarks.
-                mp_drawing.plot_landmarks(results.pose_world_landmarks, mp_pose.POSE_CONNECTIONS)        
         return results.pose_landmarks
 

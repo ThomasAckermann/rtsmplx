@@ -136,3 +136,5 @@ models/
 notebooks/
 landmarks.ipynb
 portrait.jpg
+data/
+*.ipynb
