@@ -96,7 +96,7 @@ JOINT_NAMES = [
     'left_nose_2',
     'right_eye1',
     'right_eye2',
- 22     'left_wrist',
+    'left_wrist',
     'right_eye3',
     'right_eye4',
     'right_eye5',
