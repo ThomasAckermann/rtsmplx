@@ -63,6 +63,7 @@ def create_model(path):
 
 
 def plot_model(model, plot_joints=False):
+    """
     vertices = model.vertices.detach().cpu().numpy().squeeze()
     joints = model.joints.detach().cpu().numpy().squeeze()
 
@@ -87,3 +88,5 @@ def plot_model(model, plot_joints=False):
         scene.add(joints_pcl)
 
     pyrender.Viewer(scene, use_raymond_lighting=True)
+    """
+    pass
