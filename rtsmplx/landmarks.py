@@ -4,8 +4,12 @@ import cv2
 
 
 class Landmarks:
-    """
-    Landmark class is used to combine landmarks for body, head and hands
+    """ combines landmarks for body, head and hands
+
+    Keyword arguments:
+    image   --  image in torch tensor format
+    head    --  bool that decides if head landmarks are generated (default: false)
+    hand    --  bool that decides if hand landmarks are generated (default: false)
     """
     def __init__(self, image, head=False, hands=False, debug=False):
         self.image = image.numpy()

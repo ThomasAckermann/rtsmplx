@@ -1,5 +1,11 @@
+import smplx
 
+class BodyModel:
+    """ smpl-x body model
 
-class BodyModel()
-
+    Keyword arguments:
+    var1 -- 
+    
+    """
     def __init__():
+        model = smplx.body_models.create(path, "smplx")

@@ -6,8 +6,11 @@ import rtsmplx.landmarks as lm
 
 
 class ImageDataset(Dataset):
-    """
-    Image Dataset
+    """ image dataset
+
+    Keyword arguments:
+    img_dir     --  string of the directory of the images 
+    transform   --  transforms that are applied to the images (default: None) 
     """
     def __init__(self, img_dir, transform=None):
         self.img_dir = img_dir
