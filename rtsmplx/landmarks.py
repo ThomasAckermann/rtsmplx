@@ -3,16 +3,21 @@ import mediapipe as mp
 import cv2
 
 
-class Landmarks:
-    """ combines landmarks for body, head and hands
+    class Landmarks:
+        """combines landmarks for body, head and hands
 
     Keyword arguments:
     image   --  image in torch tensor format
     head    --  bool that decides if head landmarks are generated (default: false)
     hand    --  bool that decides if hand landmarks are generated (default: false)
     """
-    def __init__(self, image, head=False, hands=False, debug=False):
-        self.image = image.numpy()
+
+    def __init__(self, image, head=False, hands=False):
+        self.image = image
+        self.image_shape = self.image.size()
+        self.image_channels = self.image_shape[0]
+        self.image_height = self.image_shape[1]
+        self.image_width = self.image_shape[2]
         self.face_lm = None
         self.hand_lm = None
         self.body_lm = self.body_landmarks(debug=False)
@@ -20,26 +25,37 @@ class Landmarks:
             self.face_lm = self.face_landmarks()
         if hands == True:
             self.hand_lm = self.hand_landmarks()
-        
+
     def face_landmarks(self):
-        fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._3D)
-        prediction = fa.get_landmarks(self.image)
+        image_face = self.image.reshape(
+                self.image_height, self.image_width, self.image_channels
+                )
+        fa = face_alignment.FaceAlignment(
+                face_alignment.LandmarksType._3D, flip_input=False
+                )
+        prediction = fa.get_landmarks(image_face)
         return prediction
 
     def hand_landmarks(self):
+        image_hands = self.image.numpy()
         drawingModule = mp.solutions.drawing_utils
         handsModule = mp.solutions.hands
         with handsModule.Hands(static_image_mode=True) as hands:
-            results = hands.process(cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB))
+            results = hands.process(cv2.cvtColor(image_hands, cv2.COLOR_BGR2RGB))
             if results.multi_hand_landmarks != None:
                 for handLandmarks in results.multi_hand_landmarks:
-                    drawingModule.draw_landmarks(self.image, handLandmarks, handsModule.HAND_CONNECTIONS)
-        return results.multi_hand_landmarks
-    
+                    drawingModule.draw_landmarks(
+                            image_hands, handLandmarks, handsModule.HAND_CONNECTIONS
+                            )
+                    return results.multi_hand_landmarks
+
     def body_landmarks(self, debug=False):
-        mp_drawing = mp.solutions.drawing_utils
-        mp_pose = mp.solutions.pose
-        with mp_pose.Pose(static_image_mode=True, model_complexity=2, min_detection_confidence=0.5) as pose:
-            results = pose.process(cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB))
+        image_body = self.image.numpy()
+        with mp.solutions.pose.Pose(
+                static_image_mode=True, model_complexity=2, min_detection_confidence=0.5
+                ) as pose:
+            results = pose.process(cv2.cvtColor(image_body, cv2.COLOR_BGR2RGB))
         return results.pose_landmarks
 
+    def plot_landmarks(head=False, hands=True):
+        return None
