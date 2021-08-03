@@ -2,6 +2,7 @@ import face_alignment
 import mediapipe as mp
 import cv2
 import matplotlib.pyplot as plt
+import torch
 
 
 class Landmarks:
@@ -36,7 +37,9 @@ class Landmarks:
         fa = face_alignment.FaceAlignment(
             face_alignment.LandmarksType._3D, flip_input=False
         )
-        prediction = fa.get_landmarks(image_face)
+        prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:,:2]
+        prediction[:,0] = prediction[:,0] / self.image_height
+        prediction[:,1] = prediction[:,1] / self.image_width
         return prediction
 
     def hand_landmarks(self):
@@ -56,12 +59,12 @@ class Landmarks:
         mp_pose = mp.solutions.pose
         image_body = self.image.numpy()
         image_body = cv2.cvtColor(image_body, cv2.COLOR_BGR2RGB)
-        print(image_body)
         with mp_pose.Pose(
             static_image_mode=True, model_complexity=2, min_detection_confidence=0.5
         ) as pose:
             results = pose.process(image_body)
-        return results.pose_landmarks
+        results = torch.Tensor([[lm.x, lm.y] for lm in results.pose_landmarks.landmark])
+        return results
 
     def plot_landmarks(head=False, hands=True):
         return None
