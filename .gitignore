@@ -140,3 +140,4 @@ portrait.jpg
 data/*
 ./data/*
 *.ipynb
+./data/
