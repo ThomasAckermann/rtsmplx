@@ -13,6 +13,3 @@ setup(
     author_email="t.ackermann@stud.uni-heidelberg.de",
     packages=["rtsmplx"],
 )
-
-
-
