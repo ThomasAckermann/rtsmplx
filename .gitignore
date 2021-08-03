@@ -138,4 +138,5 @@ landmarks.ipynb
 portrait.jpg
 */data/
 data/*
+./data/*
 *.ipynb
