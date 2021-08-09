@@ -14,6 +14,7 @@ class ImageDataset(Dataset):
     """
 
     def __init__(self, image_dir, transform=None, head=False, hands=False):
+        super(ImageDataset, self).__init__()
         self.image_dir = image_dir
         self.transform = transform
         self.image_paths = os.listdir(self.image_dir)

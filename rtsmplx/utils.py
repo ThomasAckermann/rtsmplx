@@ -26,32 +26,3 @@ def video_capture(path, framerate=5):
     video_capture.release()
     return "Done"
 
-
-def compute_depth_map(image, model, transform):
-    input_batch = transform(image).to(DEVICE)
-    with torch.no_grad():
-        prediction = midas(input_batch)
-
-        prediction = torch.nn.functional.interpolate(
-            prediction.unsqueeze(1),
-            size=img.shape[:2],
-            mode="bicubic",
-            align_corners=False,
-        ).squeeze()
-
-    output = prediction.cpu().numpy()
-    return output
-
-
-def load_midas_model():
-    model_type = "MiDaS_small"
-    midas = torch.hub.load("intell-isl/MiDaS", model_type)
-    midas.to(DEVICE)
-    midas.eval()
-    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-
-    if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
-        transform = midas_transforms.dpt_transform
-    else:
-        transform = midas_transforms.small_transform
-    return midas, transform
