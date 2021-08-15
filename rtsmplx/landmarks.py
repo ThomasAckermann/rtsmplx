@@ -22,13 +22,13 @@ class Landmarks:
         self.image_width = self.image_shape[1]
         self.image_channels = self.image_shape[2]
         self.body_lm = self.body_landmarks()
-        self.get_head_lms = head
-        self.get_hands_lms = hands
+        self.use_head_lms = head
+        self.use_hands_lms = hands
         if self.use_head_lms == True:
             self.face_lm = self.face_landmarks()
         else:
             self.face_lm = None
-        if self.use_hands == True:
+        if self.use_hands_lms == True:
             self.hand_lm = self.hand_landmarks()
         else:
             self.hand_lm = None
@@ -38,7 +38,7 @@ class Landmarks:
             self.image_height, self.image_width, self.image_channels
         )
         fa = face_alignment.FaceAlignment(
-            face_alignment.LandmarksType._3D, flip_input=False
+            face_alignment.LandmarksType._2D, flip_input=False
         )
         prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:, :2]
         prediction[:, 0] = prediction[:, 0] / self.image_height
