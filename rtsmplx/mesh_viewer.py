@@ -55,3 +55,10 @@ class MeshViewer:
                 vertices, faces, color=self.body_color)
         self.scene.add(body_mesh, name="body_mesh")
         self.viewer.render_lock.release()
+
+
+class TorchMeshViewer:
+    def __init__():
+
+    def render(mesh)
+

@@ -8,26 +8,50 @@ import rtsmplx.camera as cam
 import pytorch3d
 
 
-def forward(data, body_model):
+def forward(data, body_model, body=False, face=False, hands=False):
     image = data[0]
     image_landmarks = data[1]
-    image_landmarks = torch.flip(image_landmarks.face_landmarks())
-    bary_coords = body_model.bary_coords
-    bary_vertices = body_model.bary_vertices
-    transf_bary_coords = transform_bary_coords(bary_coords, bary_vertices)
+    pose_image_landmarks = image_landmarks.body_landmarks()
+    face_image_landmarks = image_landmarks.face_landmarks()[:17, :]
     camera = cam.Camera()
-    predictions = camera.orthographic_projection(transf_bary_coords)
+
+    if body == True:
+        joints = body_model.get_joints()
+        pose_prediction = camera.orthographic_projection(joints)
+        pose_loss_pred = pose_loss(pose_prediction, pose_image_landmarks)
+
+
+    if face == True:
+        bary_coords = body_model.bary_coords
+        bary_coords.requires_grad = True
+        bary_vertices = body_model.bary_vertices
+        transf_bary_coords = transform_bary_coords(bary_coords, bary_vertices)
+        face_predictions = camera.orthographic_projection(transf_bary_coords)
+        face_loss_pred = face_loss(face_predictions, face_image_landmarks)
+
+    if hands == True:
+        # Work in progress
+        hands_loss_pred = 0
+
     return predictions
 
 
-def backward(data, bary_coords_2d):
-    landmarks_2d = data[1].body_lm
-    pred_loss = loss(landmarks_2d, bary_coords_2d)
+def backward(loss):
+    # Work in progress
+    loss.backward()
     return None
 
 
-def loss(bary_coords_2d, landmarks_2d):
+def pose_loss(joint_coords_2d, landmarks_2d):
     return nn.MSELoss(bary_coords_2d, landmarks_2d)
+
+
+def face_loss(bary_coords_2d, landmarks_2d):
+    return nn.MSELoss(bary_coords_2d, landmarks_2d)
+
+def loss(pose_loss=0, face_loss=0, hands_loss=0)
+    loss_val = pose_loss + face_loss + hands_loss
+    return loss_val
 
 
 def optimizer(lr=1e-3):
