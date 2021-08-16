@@ -37,7 +37,6 @@ def forward(data, body_model, body=False, face=False, hands=False):
 
 
 def backward(loss):
-    # Work in progress
     loss.backward()
     return None
 
