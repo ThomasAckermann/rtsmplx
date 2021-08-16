@@ -10,6 +10,6 @@ setup(
     description="Real time SMPL-X model",
     long_description=long_description,
     author="Thomas Ackermann",
-    author_email="t.ackermann@stud.uni-heidelberg.de",
+    author_email="ql454@uni-heidelberg.de",
     packages=["rtsmplx"],
 )

@@ -15,17 +15,20 @@ class Landmarks:
     """
 
     def __init__(self, image, head=False, hands=False):
+        super(Landmarks, self).__init__()
         self.image = image
         self.image_shape = self.image.size()
         self.image_height = self.image_shape[0]
         self.image_width = self.image_shape[1]
         self.image_channels = self.image_shape[2]
         self.body_lm = self.body_landmarks()
-        if head == True:
+        self.use_head_lms = head
+        self.use_hands_lms = hands
+        if self.use_head_lms == True:
             self.face_lm = self.face_landmarks()
         else:
             self.face_lm = None
-        if hands == True:
+        if self.use_hands_lms == True:
             self.hand_lm = self.hand_landmarks()
         else:
             self.hand_lm = None
@@ -35,11 +38,11 @@ class Landmarks:
             self.image_height, self.image_width, self.image_channels
         )
         fa = face_alignment.FaceAlignment(
-            face_alignment.LandmarksType._3D, flip_input=False
+            face_alignment.LandmarksType._2D, flip_input=False
         )
-        prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:,:2]
-        prediction[:,0] = prediction[:,0] / self.image_height
-        prediction[:,1] = prediction[:,1] / self.image_width
+        prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:, :2]
+        prediction[:, 0] = prediction[:, 0] / self.image_height
+        prediction[:, 1] = prediction[:, 1] / self.image_width
         return prediction
 
     def hand_landmarks(self):
@@ -66,5 +69,23 @@ class Landmarks:
         results = torch.Tensor([[lm.x, lm.y] for lm in results.pose_landmarks.landmark])
         return results
 
-    def plot_landmarks(head=False, hands=True):
-        return None
+    def plot_landmarks(self):
+        plt.scatter(
+            self.body_lm[:, 0] * self.image_height,
+            self.body_lm[:, 1] * self.image_width,
+        )
+
+        if self.use_head_lms == True:
+            plt.scatter(
+                self.face_lm[:, 0] * self.image_height,
+                self.face_lm[:, 1] * self.image_width,
+            )
+        if self.use_head_lms == True:
+            plt.scatter(
+                self.hand_lm[:, 0] * self.image_height,
+                self.hand_lm[:, 1] * self.image_width,
+            )
+        plt.imshow(self.image)
+        plt.show()
+
+        return "Done"
