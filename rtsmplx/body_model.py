@@ -18,7 +18,9 @@ class BodyModel(smplx.body_models.SMPLX):
         self.vertices = self.v_template
         self.bary_vertices = self.vertices[self.bary_faces]
 
-    def get_joints(self):
-        forward_out = self.forward()
-        joints = forward_out.joints
+    def get_joints(self, body_pose=None):
+        if body_pose == None:
+            body_pose = self.body_pose
+        forward_out = self.forward(body_pose=body_pose)
+        joints = forward_out.joints.reshape(-1, 3)
         return joints

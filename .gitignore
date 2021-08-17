@@ -139,3 +139,4 @@ portrait.jpg
 *.ipynb
 ./data/*
 data/
+runs/
