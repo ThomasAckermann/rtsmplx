@@ -5,7 +5,8 @@ import torch.optim as optim
 import rtsmplx.dataset as dataset
 import rtsmplx.body_model as bm
 import rtsmplx.camera as cam
-import pytorch3d
+import pytorch3d.structures
+import trimesh
 
 
 def opt_step(data, body_model, body=False, face=False, hands=False, lr=1e-3):
@@ -48,7 +49,16 @@ def opt_step(data, body_model, body=False, face=False, hands=False, lr=1e-3):
     )
     loss_pred.backward()
     body_pose_params = body_pose_params - lr * body_pose_params.grad
-    return body_pose_params
+    return (body_model, body_pose_params.detach())
+
+
+def get_mesh(body_model, body_pose):
+    faces = body_model.faces.reshape(-1, 3).detach().numpy()
+    vertices = body_model.forward(body_pose=body_pose).vertices.reshape(-1, 3).detach().numpy()
+    # torch_mesh = pytorch3d.structures.Meshes(verts=vertices, faces=faces)
+    tri_mesh = trimesh.base.Trimesh(vertices=vertices, faces=faces)
+    return tri_mesh
+
 
 
 def pose_loss(joint_coords_2d, landmarks_2d):
@@ -63,6 +73,7 @@ def face_loss(bary_coords_2d, landmarks_2d):
 def loss(pose_loss=0, face_loss=0, hands_loss=0):
     loss_val = pose_loss + face_loss + hands_loss
     return loss_val
+
 
 def mse_loss():
     return nn.MSELoss()
