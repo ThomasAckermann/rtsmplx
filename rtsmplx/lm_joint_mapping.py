@@ -32,11 +32,13 @@ def get_lm_mapping():
             [24, 4],  # left eye
         ]
     )
+    """
 
     face_mapping = np.array(
         [np.arange(start=76, stop=127), np.arange(start=40, stop=91)]
     ).T
     lm_mapping = np.concatenate((lm_mapping, face_mapping), axis=0)
+    """
 
     return lm_mapping
 

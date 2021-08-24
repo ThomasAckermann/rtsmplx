@@ -2,9 +2,11 @@ import torch
 import pytorch3d
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 import rtsmplx.dataset as dataset
 import rtsmplx.body_model as bm
 import rtsmplx.camera as cam
+import rtsmplx.utils as utils
 import rtsmplx.lm_joint_mapping
 import pytorch3d.structures
 import trimesh
@@ -14,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 def opt_step(
     image_landmarks,
     body_model,
+    opt,
     ocam,
     body_params=None,
     lr=1e-3,
@@ -26,9 +29,12 @@ def opt_step(
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = image_landmarks.body_landmarks()
     face_image_landmarks = image_landmarks.face_landmarks()[17:, :]
-    pose_image_landmarks = torch.cat((pose_image_landmarks, face_image_landmarks), dim=0)
+    """
+    pose_image_landmarks = torch.cat(
+        (pose_image_landmarks, face_image_landmarks), dim=0
+    )
+    """
     pose_image_landmarks = pose_image_landmarks[pose_mapping[:, 1]]
-    opt = optimizer(body_model.parameters(), lr=lr)
 
     if body == True:
         """
@@ -42,6 +48,11 @@ def opt_step(
         joints = body_model.get_joints(body_pose=body_model.body_pose)
         joints = joints[pose_mapping[:, 0]]
         pose_prediction = ocam.orthographic_projection(joints)
+        """
+        pose_prediction = rigid_landmark_transform(
+            pose_prediction, pose_image_landmarks
+        )
+        """
         pose_loss_pred = pose_loss(pose_prediction, pose_image_landmarks)
         if writer != None:
             writer.add_scalar("Pose Loss", pose_loss_pred.detach(), idx)
@@ -68,15 +79,13 @@ def opt_step(
     else:
         hands_loss_pred = 0
 
-    opt.zero_grad()
     loss_pred = loss(
         pose_loss=pose_loss_pred, face_loss=face_loss_pred, hands_loss=hands_loss_pred
     )
+    opt.zero_grad()
     loss_pred.backward()
     opt.step()
-    # body_pose_params = body_pose_params - lr * body_pose_params.grad
-    # body_model.body_pose = body_pose_params
-    return (body_model, ocam) # (body_model, body_pose_params.detach(), ocam)
+    return (body_model, ocam)
 
 
 def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr=1e-3):
@@ -84,14 +93,16 @@ def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr
     image = data[0]
     landmarks = data[1]
     ocam = cam.OrthographicCamera()
+    opt = optimizer(body_model.parameters(), lr=lr)
     for i in range(num_runs):
-        if (i % 5 == 0):
+        if i % 5 == 0:
             print(i)
         if i > 0:
             # body_model, body_pose_params, ocam = opt_step(
             body_model, ocam = opt_step(
                 landmarks,
                 body_model,
+                opt,
                 ocam,
                 body=body,
                 face=face,
@@ -107,6 +118,7 @@ def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr
             body_model, ocam = opt_step(
                 landmarks,
                 body_model,
+                opt,
                 ocam,
                 body=body,
                 face=face,
@@ -117,7 +129,7 @@ def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr
                 idx=i,
             )
 
-    writer.close()
+            writer.close()
     body_pose_params = body_model.body_pose
 
     return body_model, body_pose_params
@@ -158,6 +170,51 @@ def optimizer(params, lr=1e-3):
 def transform_bary_coords(bary_coords, bary_vertices):
     transf_bary_coords = torch.einsum("ijk,ij->ik", bary_vertices, bary_coords)
     return transf_bary_coords
+
+
+def rigid_landmark_transform(pose_landmarks, model_landmarks):
+    # model_landmarks = torch.matmul(model_landmarks, utils.rot_mat_2d(torch.Tensor([np.pi])))
+    body_axis_pose = (pose_landmarks[12] - pose_landmarks[0])
+    body_axis_pose = body_axis_pose.detach().numpy()
+    body_axis_model = (model_landmarks[12] - model_landmarks[0])
+    body_axis_model = body_axis_model.detach().numpy()
+
+    # translation
+    dist_pose_model = pose_landmarks[11] - model_landmarks[11]
+    model_landmarks = torch.add(model_landmarks, dist_pose_model)
+
+    # scaling
+    scaling = torch.Tensor(
+        [
+            [body_axis_pose[0] / body_axis_model[0], 0],
+            [0, body_axis_pose[1] / body_axis_model[1]],
+        ]
+    )
+    model_landmarks = torch.matmul(model_landmarks, scaling)
+
+    # rotation
+    rotation_angle = utils.angle_between(body_axis_pose, body_axis_model)
+    model_landmarks = torch.matmul(model_landmarks, utils.rot_mat_2d(-1 * rotation_angle))
+
+    return model_landmarks
+
+def plot_landmarks(body_model, image_landmarks):
+    ocam = cam.OrthographicCamera()
+    pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
+    pose_image_landmarks = image_landmarks.body_landmarks()
+    face_image_landmarks = image_landmarks.face_landmarks()[17:, :]
+    pose_image_landmarks = torch.cat(
+        (pose_image_landmarks, face_image_landmarks), dim=0
+    )
+    pose_image_landmarks = pose_image_landmarks[pose_mapping[:, 1]]
+
+    joints = body_model.get_joints(body_pose=body_model.body_pose)
+    joints = joints[pose_mapping[:, 0]]
+    pose_prediction = ocam.orthographic_projection(joints)
+    pose_prediction = rigid_landmark_transform(
+        pose_prediction, pose_image_landmarks
+    )
+    return (pose_image_landmarks.numpy(), pose_prediction.detach().numpy())
 
 
 if __name__ == "__main__":

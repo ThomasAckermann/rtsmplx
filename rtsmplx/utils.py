@@ -26,3 +26,14 @@ def video_capture(path, framerate=5):
     video_capture.release()
     return "Done"
 
+
+def rot_mat_2d(angle):
+    s = torch.sin(angle)
+    c = torch.cos(angle)
+    return torch.Tensor([[c, -s], [s, c]])
+
+def angle_between(vec1, vec2):
+    vec1 = vec1 / np.linalg.norm(vec1)
+    vec2 = vec2 / np.linalg.norm(vec2)
+    rotation_angle = torch.Tensor([np.arccos(np.dot(vec1, vec2))])
+    return rotation_angle
