@@ -48,11 +48,6 @@ def opt_step(
         joints = body_model.get_joints(body_pose=body_model.body_pose)
         joints = joints[pose_mapping[:, 0]]
         pose_prediction = ocam.forward(joints)
-        """
-        pose_prediction = rigid_landmark_transform(
-            pose_prediction, pose_image_landmarks
-        )
-        """
         pose_loss_pred = pose_loss(pose_prediction, pose_image_landmarks)
         if writer != None:
             writer.add_scalar("Pose Loss", pose_loss_pred.detach(), idx)
@@ -78,7 +73,6 @@ def opt_step(
             writer.add_scalar("Hands Loss", hands_loss_pred.detach(), idx)
     else:
         hands_loss_pred = 0
-    print(ocam.cam_param)
     loss_pred = loss(
         pose_loss=pose_loss_pred, face_loss=face_loss_pred, hands_loss=hands_loss_pred
     )
@@ -94,12 +88,12 @@ def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr
     landmarks = data[1]
     ocam = cam.OrthographicCamera()
     # opt = optimizer(body_model.parameters(), lr=lr)
-    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    opt = optimizer(ocam.parameters(), lr=lr)
+    # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
     for i in range(num_runs):
         if i % 5 == 0:
             print(i)
         if i > 0:
-            # body_model, body_pose_params, ocam = opt_step(
             body_model, ocam = opt_step(
                 landmarks,
                 body_model,
@@ -115,7 +109,6 @@ def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr
                 idx=i,
             )
         else:
-            # body_model, body_pose_params, ocam = opt_step(
             body_model, ocam = opt_step(
                 landmarks,
                 body_model,
@@ -141,7 +134,6 @@ def get_mesh(body_model, body_pose):
     vertices = (
         body_model.forward(body_pose=body_pose).vertices.reshape(-1, 3).detach().numpy()
     )
-    # torch_mesh = pytorch3d.structures.Meshes(verts=vertices, faces=faces)
     tri_mesh = trimesh.base.Trimesh(vertices=vertices, faces=faces)
     return tri_mesh
 
@@ -173,49 +165,6 @@ def transform_bary_coords(bary_coords, bary_vertices):
     return transf_bary_coords
 
 
-def rigid_landmark_transform(pose_landmarks, model_landmarks):
-    # model_landmarks = torch.matmul(model_landmarks, utils.rot_mat_2d(torch.Tensor([np.pi])))
-    body_axis_pose = pose_landmarks[12] - pose_landmarks[0]
-    body_axis_pose = body_axis_pose.detach().numpy()
-    body_axis_model = model_landmarks[12] - model_landmarks[0]
-    body_axis_model = body_axis_model.detach().numpy()
-
-    # scaling
-    """
-    scaling_x_pose = (pose_landmarks[18] - pose_landmarks[19]).detach().numpy()[0]
-    scaling_x_model = (model_landmarks[18] - model_landmarks[19]).detach().numpy()[0]
-    scaling_x = scaling_x_pose / scaling_x_model
-    scaling_y = body_axis_pose[1] / body_axis_model[1]
-    scaling = torch.Tensor(
-        [
-            [scaling_x, 0],
-            [0, scaling_y],
-        ]
-    )
-    model_landmarks = torch.matmul(model_landmarks, scaling)
-    """
-    scaling = torch.Tensor(
-        [
-            [1, 0],
-            [0, -1],
-        ]
-    )
-    model_landmarks = torch.matmul(model_landmarks, scaling)
-
-    # rotation
-    """
-    rotation_angle = utils.angle_between(body_axis_pose, body_axis_model)
-    model_landmarks = torch.matmul(
-        model_landmarks, utils.rot_mat_2d(-1 * rotation_angle)
-    )
-    """
-    # translation
-    dist_pose_model = pose_landmarks[1] - model_landmarks[1]
-    model_landmarks = torch.add(model_landmarks, dist_pose_model)
-
-    return model_landmarks
-
-
 def plot_landmarks(body_model, image_landmarks):
     ocam = cam.OrthographicCamera()
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
@@ -229,9 +178,6 @@ def plot_landmarks(body_model, image_landmarks):
     joints = body_model.get_joints(body_pose=body_model.body_pose)
     joints = joints[pose_mapping[:, 0]]
     pose_prediction = ocam.forward(joints)
-    pose_prediction = rigid_landmark_transform(pose_image_landmarks, pose_prediction)
-    # print("model", pose_prediction)
-    # print("pose", pose_image_landmarks)
     return (pose_image_landmarks.numpy(), pose_prediction.detach().numpy())
 
 
