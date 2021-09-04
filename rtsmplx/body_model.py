@@ -1,5 +1,6 @@
 import smplx
 import torch
+import torch.nn as nn
 
 
 class BodyModel(smplx.body_models.SMPLX):

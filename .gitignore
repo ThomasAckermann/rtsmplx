@@ -133,7 +133,9 @@ dmypy.json
 # specific directories and files
 ./models/
 models/
+support_data/
 notebooks/
+
 landmarks.ipynb
 portrait.jpg
 *.ipynb
