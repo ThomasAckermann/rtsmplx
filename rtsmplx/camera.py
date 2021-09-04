@@ -7,14 +7,14 @@ from rtsmplx.utils import transform_mat
 class OrthographicCamera(nn.Module):
     """Orthographic camera model"""
 
-    def __init__(self, bb_params=None, trans_mat=None):
+    def __init__(self):
         super(OrthographicCamera, self).__init__()
 
 
         # register scale, rotation and translation parameters
         scale = torch.ones(1)
         rotation = torch.zeros(3)
-        translation = torch.zeros(3)
+        translation = torch.zeros((3,1))
 
         scale = nn.Parameter(scale, requires_grad=True)
         rotation = nn.Parameter(rotation, requires_grad=True)
@@ -28,10 +28,13 @@ class OrthographicCamera(nn.Module):
         points_shape = points.shape
         points_reshape = torch.ones(points.shape[0], 4)
         points_reshape[:, :3] = points
-        transform = transform_mat(self.rotation, self.translation, self.scaling)
-        projected_points = torch.matmul(points_reshape, trans_mat)
+        transform = transform_mat(self.rotation, self.translation, self.scale)
+        projected_points = points_reshape @ transform.T
         projected_points = projected_points[:, :2]
         return projected_points
+
+    def get_cam_transform(self):
+        return transform_mat(self.rotation, self.translation, self.scale)
 
 
 class PerspectiveCamera(nn.Module):
@@ -71,3 +74,4 @@ class PerspectiveCamera(nn.Module):
         img_points = torch.div(projected_points[:, :, :2], projected_points[:, :, 2])
         img_points = torch.einsum("ki,ji->jk", [camera_mat, img_points])
         return img_points
+    

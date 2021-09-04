@@ -15,11 +15,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 def opt_step(
     image_landmarks,
+    pose_image_landmarks,
+    face_image_landmarks,
     body_model,
     opt,
     ocam,
     body_params=None,
     lr=1e-3,
+    regularization=1e-3,
     body=False,
     face=False,
     hands=False,
@@ -27,14 +30,11 @@ def opt_step(
     idx=0,
 ):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
-    pose_image_landmarks = image_landmarks.body_landmarks()
-    face_image_landmarks = image_landmarks.face_landmarks()[17:, :]
     """
     pose_image_landmarks = torch.cat(
         (pose_image_landmarks, face_image_landmarks), dim=0
     )
     """
-    pose_image_landmarks = pose_image_landmarks[pose_mapping[:, 1]]
 
     if body == True:
         """
@@ -73,60 +73,127 @@ def opt_step(
             writer.add_scalar("Hands Loss", hands_loss_pred.detach(), idx)
     else:
         hands_loss_pred = 0
-    loss_pred = loss(
-        pose_loss=pose_loss_pred, face_loss=face_loss_pred, hands_loss=hands_loss_pred
-    )
+    body_pose_param = body_model.body_pose
+    loss_pred = loss(pose_loss_pred, face_loss_pred, hands_loss_pred, body_pose_param, regularization)
     opt.zero_grad()
     loss_pred.backward()
     opt.step()
     return (body_model, ocam)
 
 
-def opt_loop(data, body_model, num_runs, body=False, face=False, hands=False, lr=1e-3):
+def run(
+    num_runs,
+    landmarks,
+    pose_image_landmarks,
+    face_image_landmarks,
+    body_model,
+    opt,
+    ocam,
+    body=False,
+    face=False,
+    hands=False,
+    body_params=None,
+    lr=1e-3,
+    regularization=1e-3,
+    print_every=50,
+):
     writer = SummaryWriter()
+    for i in range(1, num_runs):
+        # if i % print_every == 0:
+            # print(i)
+
+        body_model, ocam = opt_step(
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=body_params,
+            lr=lr,
+            regularization=regularization,
+            writer=writer,
+            idx=i,
+        )
+    writer.close()
+    return body_model, ocam
+
+
+def opt_loop(
+    data,
+    body_model,
+    num_runs,
+    body=False,
+    face=False,
+    hands=False,
+    lr=1e-3,
+    regularization=1e-2,
+):
     image = data[0]
     landmarks = data[1]
+    pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
+    pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]]
+    face_image_landmarks = landmarks.face_landmarks()[17:, :]
     ocam = cam.OrthographicCamera()
     # opt = optimizer(body_model.parameters(), lr=lr)
     opt = optimizer(ocam.parameters(), lr=lr)
     # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    for i in range(num_runs):
-        if i % 5 == 0:
-            print(i)
-        if i > 0:
-            body_model, ocam = opt_step(
-                landmarks,
-                body_model,
-                opt,
-                ocam,
-                body=body,
-                face=face,
-                hands=hands,
-                # body_params=body_pose_params,
-                body_params=None,
-                lr=lr,
-                writer=writer,
-                idx=i,
-            )
-        else:
-            body_model, ocam = opt_step(
-                landmarks,
-                body_model,
-                opt,
-                ocam,
-                body=body,
-                face=face,
-                hands=hands,
-                body_params=None,
-                lr=lr,
-                writer=writer,
-                idx=i,
-            )
+    body_model, ocam = run(
+        num_runs,
+        landmarks,
+        pose_image_landmarks,
+        face_image_landmarks,
+        body_model,
+        opt,
+        ocam,
+        body=body,
+        face=face,
+        hands=hands,
+        body_params=None,
+        lr=lr,
+        regularization=regularization,
+    )
+    # opt = optimizer(ocam.parameters(), lr=lr)
+    opt = optimizer(body_model.parameters(), lr=lr)
+    body_model, ocam = run(
+        num_runs,
+        landmarks,
+        pose_image_landmarks,
+        face_image_landmarks,
+        body_model,
+        opt,
+        ocam,
+        body=body,
+        face=face,
+        hands=hands,
+        body_params=None,
+        lr=lr,
+        regularization=regularization,
+    )
 
-            writer.close()
+    lr = lr * 0.1
+    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    body_model, ocam = run(
+        num_runs,
+        landmarks,
+        pose_image_landmarks,
+        face_image_landmarks,
+        body_model,
+        opt,
+        ocam,
+        body=body,
+        face=face,
+        hands=hands,
+        body_params=None,
+        lr=lr,
+        regularization=regularization,
+    )
     body_pose_params = body_model.body_pose
 
-    return body_model, body_pose_params
+    return body_model, body_pose_params, ocam
 
 
 def get_mesh(body_model, body_pose):
@@ -147,8 +214,9 @@ def face_loss(bary_coords_2d, landmarks_2d):
     return nn.MSELoss(bary_coords_2d, landmarks_2d)
 
 
-def loss(pose_loss=0, face_loss=0, hands_loss=0):
-    loss_val = pose_loss + face_loss + hands_loss
+def loss(pose_loss, face_loss, hands_loss, body_pose, regularization):
+    body_pose_prior = torch.linalg.norm(body_pose)
+    loss_val = pose_loss + face_loss + hands_loss + regularization * body_pose_prior
     return loss_val
 
 
@@ -165,8 +233,7 @@ def transform_bary_coords(bary_coords, bary_vertices):
     return transf_bary_coords
 
 
-def plot_landmarks(body_model, image_landmarks):
-    ocam = cam.OrthographicCamera()
+def plot_landmarks(ocam, body_model, image_landmarks):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = image_landmarks.body_landmarks()
     face_image_landmarks = image_landmarks.face_landmarks()[17:, :]
