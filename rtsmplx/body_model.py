@@ -10,8 +10,9 @@ class BodyModel(smplx.body_models.SMPLX):
     model_path -- string of path to model
     """
 
-    def __init__(self, model_path, num_expression_coeffs=10, gender="neutral"):
+    def __init__(self, model_path, gender="neutral"):
         super(BodyModel, self).__init__(model_path=model_path)
+        self.gender = gender
         self.bary_coords = self.lmk_bary_coords
         self.bary_faces_idx = self.lmk_faces_idx.type(torch.long)
         self.faces = self.faces_tensor.type(torch.long)

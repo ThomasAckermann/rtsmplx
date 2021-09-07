@@ -68,15 +68,15 @@ class Landmarks:
             results = pose.process(image_body)
         results = torch.Tensor([[lm.x, lm.y] for lm in results.pose_landmarks.landmark])
         body_lms = torch.zeros(40, 2)
-        body_lms[:33,:] = results
-        body_lms[33] = (results[11] +  results[12])/2 # torso top
-        body_lms[34] = (results[23] + results[24])/2 # torso bottom
-        body_lms[35] = (body_lms[33] + results[11])/2 # inner shoulder right
-        body_lms[36] = (body_lms[33] + results[12])/2 # inner shoulder left
+        body_lms[:33, :] = results
+        body_lms[33] = (results[11] + results[12]) / 2  # torso top
+        body_lms[34] = (results[23] + results[24]) / 2  # torso bottom
+        body_lms[35] = (body_lms[33] + results[11]) / 2  # inner shoulder right
+        body_lms[36] = (body_lms[33] + results[12]) / 2  # inner shoulder left
         body_axis = body_lms[33] - body_lms[34]
-        body_lms[37] = (body_lms[34] + (1/4) * body_axis)
-        body_lms[38] = (body_lms[34] + (2/4) * body_axis)
-        body_lms[39] = (body_lms[34] + (3/4) * body_axis)
+        body_lms[37] = body_lms[34] + (1 / 4) * body_axis
+        body_lms[38] = body_lms[34] + (2 / 4) * body_axis
+        body_lms[39] = body_lms[34] + (3 / 4) * body_axis
 
         return body_lms
 

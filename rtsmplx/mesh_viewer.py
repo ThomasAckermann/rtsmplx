@@ -21,6 +21,7 @@ def render_trimesh_orthographic(
     scene.add(mesh)
     camera = pyrender.OrthographicCamera(xmag=xmag, ymag=ymag)
     camera_pose = ocam.get_cam_transform().detach().numpy()
+    # camera_pose[2][2] = -1 * camera_pose[2][2]
     camera_pose[:3, 3] = np.array([0.0, 0.0, 0.0])
     camera_pose[2, 3] = camera_pose[2, 3] + offset
     scene.add(camera, pose=camera_pose)
