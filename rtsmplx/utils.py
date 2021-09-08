@@ -6,6 +6,11 @@ import numpy as np
 import pyrender
 import trimesh
 import pytorch3d
+import io
+
+import whatimage
+import pyheif
+from PIL import Image
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -47,20 +52,44 @@ def transform_mat(rot, transl, scale=1):
     bottom = torch.Tensor([[0.0, 0.0, 0.0, 1.0]])
     transl_mat_3 = torch.cat((eye_3, transl), dim=1)
     translation_mat = torch.cat((transl_mat_3, bottom), dim=0)
-    # print(translation_mat)
 
     # scale matrix
     scale_mat_3 = scale * torch.eye(3)
     scale_mat = torch.eye(4)
     scale_mat[:3, :3] = scale_mat_3
-    # print(scale_mat)
 
     # rotation matrix
     rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
     rotation_mat = torch.eye(4)
     rotation_mat[:3, :3] = rotation_mat_3
-    # print(rotation_mat)
 
     transform = translation_mat @ scale_mat @ rotation_mat
 
     return transform
+
+
+def transform_mat_persp(rot, transl):
+    # translation matrix
+    eye_3 = torch.eye(3)
+    bottom = torch.Tensor([[0.0, 0.0, 0.0, 1.0]])
+    transl_mat_3 = torch.cat((eye_3, transl), dim=1)
+    translation_mat = torch.cat((transl_mat_3, bottom), dim=0)
+
+    # rotation matrix
+    rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
+    rotation_mat = torch.eye(4)
+    rotation_mat[:3, :3] = rotation_mat_3
+
+    transform = translation_mat @ rotation_mat
+
+    return transfor
+
+
+
+def get_torch_trans_format(translation, rot_angles):
+    rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
+    return (translation, rotation_mat)
+
+
+def get_fov():
+    

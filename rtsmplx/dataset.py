@@ -26,6 +26,8 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         image_path = os.path.join(self.image_dir, self.image_paths[index])
-        image = torch.from_numpy(cv2.imread(image_path))# .type(torch.int8)
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = torch.from_numpy(image)# .type(torch.int8)
         landmarks = lm.Landmarks(image, head=self.head, hands=self.hands)
         return (image, landmarks)
