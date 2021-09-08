@@ -90,6 +90,3 @@ def get_torch_trans_format(translation, rot_angles):
     rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
     return (translation, rotation_mat)
 
-
-def get_fov():
-    
