@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from rtsmplx.utils import transform_mat
+from rtsmplx.utils import transform_mat_persp
 
 
 class OrthographicCamera(nn.Module):
@@ -45,7 +46,7 @@ class PerspectiveCamera(nn.Module):
         super(PerspectiveCamera, self).__init__()
 
 
-        # register scale, rotation and translation parameters
+        # register rotation and translation parameters
         rotation = torch.zeros(3)
         translation = torch.zeros((3,1))
 
@@ -55,8 +56,10 @@ class PerspectiveCamera(nn.Module):
         self.register_parameter("rotation", rotation)
         self.register_parameter("translation", translation)
 
-        # focal length
+        # register focal length
 
+        focal_length_x = None
+        focal_length_y = None
         focal_length_x = torch.Tensor(
                 [self.FOCAL_LENGTH if focal_length_x is None else focal_length_x]
                 )
@@ -69,8 +72,9 @@ class PerspectiveCamera(nn.Module):
         self.register_parameter("focal_length_x", focal_length_x)
         self.register_parameter("focal_length_y", focal_length_y)
 
-        # center
-        center = torch.zeros([2], dtype=dtype)
+        # register center
+        center = torch.zeros([2])
+        center = nn.Parameter(center, requires_grad=True)
         self.register_parameter('center', center)
 
     def forward(self, points):
@@ -81,13 +85,13 @@ class PerspectiveCamera(nn.Module):
         points_shape = points.shape
         points_reshape = torch.ones(points.shape[0], 4)
         points_reshape[:, :3] = points
-        transform = transform_mat_persp(self.rotation, self.translation, self.scale)
+        transform = transform_mat_persp(self.rotation, self.translation)
         projected_points = points_reshape @ transform.T
-        img_points = torch.div(projected_points[:,:2], projected_points[:,2])
+        img_points = torch.div(projected_points[:,:2].T, projected_points[:,2]).T
         img_poings = torch.einsum("ki,ji->jk", [camera_mat, img_points]) + self.center
-        projected_points = projected_points[:, :2]
-        return projected_points
+        # projected_points = projected_points[:, :2]
+        return img_points
 
     def get_cam_transform(self):
-        return transform_mat(self.rotation, self.translation, self.scale)
+        return transform_mat(self.rotation, self.translation)
 

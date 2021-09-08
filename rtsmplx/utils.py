@@ -7,10 +7,7 @@ import pyrender
 import trimesh
 import pytorch3d
 import io
-
-import whatimage
-import pyheif
-from PIL import Image
+import pytorch3d
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -82,11 +79,19 @@ def transform_mat_persp(rot, transl):
 
     transform = translation_mat @ rotation_mat
 
-    return transfor
-
+    return transform
 
 
 def get_torch_trans_format(translation, rot_angles):
-    rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
+    rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(rot)
+    rotation_mat = torch.reshape(rotation_mat, [1, -1])
+    translation = torch.reshape(translation, [1, -1])
     return (translation, rotation_mat)
+
+
+def trimesh_to_torch(trimesh):
+    vertices = torch.from_numpy(trimesh.vertices).reshape([1, -1])
+    faces = torch.from_numpy(trimesh.faces).reshape([1, -1])
+    torchmesh = pytorch3d.structures.Meshes(verts=vertices,faces=faces)
+    return torchmesh
 
