@@ -65,7 +65,7 @@ def render_trimesh_no_transform(trimesh, xmag=1.0, ymag=1.0, imgh=400, imgw=400)
     return color, depth
 
 
-def render_trimesh_perspective_torch(trimesh, ocam):
+def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=50.0, azimuth=0.0):
 
     mesh = utils.trimesh_to_torch(trimesh)
     translation_mat, rotation_mat = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
