@@ -24,8 +24,6 @@ BODY_MODEL_PATH = os.path.join(
         SUPPORT_DIRECTORY, "models/smplx/SMPLX_MALE.npz"
         )  #'PATH_TO_SMPLX_model.npz'  obtain from https://smpl-x.is.tue.mpg.de/downloads
 
-
-
 def opt_step(
         image_landmarks,
         pose_image_landmarks,
@@ -43,6 +41,7 @@ def opt_step(
         writer=None,
         idx=0,
         device="cpu",
+        print_every=200,
         ):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     """
@@ -116,6 +115,8 @@ def opt_step(
         if writer != None:
             writer.add_scalar("Loss with Regularization", loss_pred.detach(), idx)
         loss_pred.backward()
+        if idx % print_every == 0:
+            print("Iteration:", idx, "Loss:", loss_pred.detach().cpu().numpy())
         return loss_pred
 
     opt.step(closure)
@@ -142,9 +143,6 @@ def run(
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     writer = SummaryWriter()
     for i in range(1, num_runs):
-        if i % print_every == 0:
-            print(i)
-
         body_model, ocam = opt_step(
                 landmarks,
                 pose_image_landmarks,
@@ -161,8 +159,10 @@ def run(
                 writer=writer,
                 vposer=vposer,
                 idx=i,
-                device=device
+                device=device,
+                print_every=print_every,
                 )
+
         writer.close()
     return body_model, ocam
 
@@ -177,7 +177,8 @@ def opt_loop(
         lr=1e-3,
         regularization=1e-2,
         vposer=None,
-        cam_type="perspective"
+        cam_type="perspective",
+        print_every=200
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     image = data[0]
@@ -197,10 +198,11 @@ def opt_loop(
         else:
             param.requires_grad = False
         itern += 1
-    opt = optimizer(ocam.parameters(), lr=lr)
     # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    print("Start Optimizing Camera and Pose together")
     body_model, ocam = run(
-            int(num_runs / 2),
+            int(num_runs / 3),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
@@ -214,25 +216,47 @@ def opt_loop(
             lr=lr,
             regularization=regularization,
             vposer=vposer,
+            print_every=print_every,
+            )
+    print("Start Optimizing Camera")
+    opt = optimizer(ocam.parameters(), lr=lr)
+    body_model, ocam = run(
+            int(num_runs / 3),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
+            )
+    opt = optimizer(body_model.parameters(), lr=lr)
+    print("Start Optimizing Body Pose")
+    body_model, ocam = run(
+            int(num_runs / 3),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
             )
 
-    opt = optimizer(body_model.parameters(), lr=lr)
-    body_model, ocam = run(
-            int(num_runs / 2),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            body=body,
-            face=face,
-            hands=hands,
-            body_params=None,
-            lr=lr,
-            regularization=regularization,
-            vposer=vposer,
-            )
 
     body_pose_params = body_model.body_pose
     return body_model, body_pose_params, ocam
@@ -309,7 +333,7 @@ def plot_landmarks(ocam, body_model, image_landmarks):
     joints = body_model.get_joints(body_pose=body_model.body_pose)
     joints = joints[pose_mapping[:, 0]]
     pose_prediction = ocam.forward(joints)
-    return (pose_image_landmarks.detach().numpy(), pose_prediction.detach().numpy())
+    return (pose_image_landmarks.detach().cpu().numpy(), pose_prediction.detach().cpu().numpy())
 
 
 if __name__ == "__main__":
