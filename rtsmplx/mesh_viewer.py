@@ -67,37 +67,33 @@ def render_trimesh_no_transform(trimesh, xmag=1.0, ymag=1.0, imgh=400, imgw=400)
 
 def render_trimesh_perspective_torch(trimesh, ocam):
 
-    mesh = utils.get_torch_mesh(trimesh)
-
-    rotation_mat, translation_mat = utils.get_torch_trans_format(ocam.translation, ocam.rotation)
+    mesh = utils.trimesh_to_torch(trimesh)
+    translation_mat, rotation_mat = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    translation_mat = translation_mat
+    rotation_mat = rotation_mat
     fx = ocam.focal_length_x
     fy = ocam.focal_length_y
     center = ocam.center
-    calibration_mat = torch.tensor(
-            [   [fx, 0, center[0], 0],
-                [0, fy, center[1], 0],
-                [0, 0, 1, 0]
-                ]
-            )
+    calibration_mat = torch.tensor([[[fx,0,center[0],0],
+        [0,fy,center[1],0],
+        [0,0,0,1],
+        [0,0,1,0]]])
 
-    render_cam = pytorch3d.renderer.cameras.FoVPerspectiveCameras(R=rotation_mat, T=translation_mat,  fov=fov, degrees=False, K=calibration_mat)
-
-
+    render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(R=rotation_mat, T=translation_mat, K=calibration_mat)
     raster_settings = RasterizationSettings(
             image_size=512,
             blur_radius=0.0,
             faces_per_pixel=1,
             )
 
-    lights = PointLights(device=device, location=[[0.0, 0.0, -3.0]])
+    lights = PointLights(location=[[0.0, 0.0, -3.0]])
     renderer = MeshRenderer(
             rasterizer=MeshRasterizer(
                 cameras=render_camera,
                 raster_settings=raster_settings
                 ),
             shader=SoftPhongShader(
-                device=device,
-                cameras=cameras,
+                cameras=render_camera,
                 lights=lights
                 )
             )

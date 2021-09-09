@@ -45,7 +45,6 @@ class PerspectiveCamera(nn.Module):
     def __init__(self):
         super(PerspectiveCamera, self).__init__()
 
-
         # register rotation and translation parameters
         rotation = torch.zeros(3)
         translation = torch.zeros((3,1))
