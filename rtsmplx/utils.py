@@ -6,6 +6,9 @@ import numpy as np
 import pyrender
 import trimesh
 import pytorch3d
+import io
+import pytorch3d
+from pytorch3d.renderer import TexturesVertex
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -47,20 +50,53 @@ def transform_mat(rot, transl, scale=1):
     bottom = torch.Tensor([[0.0, 0.0, 0.0, 1.0]])
     transl_mat_3 = torch.cat((eye_3, transl), dim=1)
     translation_mat = torch.cat((transl_mat_3, bottom), dim=0)
-    # print(translation_mat)
 
     # scale matrix
     scale_mat_3 = scale * torch.eye(3)
     scale_mat = torch.eye(4)
     scale_mat[:3, :3] = scale_mat_3
-    # print(scale_mat)
 
     # rotation matrix
     rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
     rotation_mat = torch.eye(4)
     rotation_mat[:3, :3] = rotation_mat_3
-    # print(rotation_mat)
 
     transform = translation_mat @ scale_mat @ rotation_mat
 
     return transform
+
+
+def transform_mat_persp(rot, transl):
+    # translation matrix
+    eye_3 = torch.eye(3)
+    bottom = torch.Tensor([[0.0, 0.0, 0.0, 1.0]])
+    transl_mat_3 = torch.cat((eye_3, transl), dim=1)
+    translation_mat = torch.cat((transl_mat_3, bottom), dim=0)
+
+    # rotation matrix
+    rotation_mat_3 = pytorch3d.transforms.axis_angle_to_matrix(rot)
+    rotation_mat = torch.eye(4)
+    rotation_mat[:3, :3] = rotation_mat_3
+
+    transform = translation_mat @ rotation_mat
+
+    return transform
+
+
+def get_torch_trans_format(translation, rot_angles):
+    rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(rot_angles)
+    rotation_mat = rotation_mat.reshape([1, 3, 3])
+    translation = translation.reshape([1, 3])
+    return (translation, rotation_mat)
+
+
+def trimesh_to_torch(trimesh, textures=None):
+    vertices = torch.from_numpy(np.array(trimesh.vertices)).reshape([1, -1, 3]).type(torch.float32)
+    faces = torch.from_numpy(np.array(trimesh.faces)).reshape([1, -1, 3]).type(torch.int32)
+    if textures == None:
+        verts_rgb = torch.ones_like(vertices)
+        textures = TexturesVertex(verts_features=verts_rgb)
+
+    torchmesh = pytorch3d.structures.Meshes(verts=vertices,faces=faces, textures=textures)
+    return torchmesh
+
