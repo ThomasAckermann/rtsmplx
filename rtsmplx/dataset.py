@@ -15,6 +15,7 @@ class ImageDataset(Dataset):
 
     def __init__(self, image_dir, transform=None, head=False, hands=False):
         super(ImageDataset, self).__init__()
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self.image_dir = image_dir
         self.transform = transform
         self.image_paths = os.listdir(self.image_dir)
@@ -26,6 +27,6 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         image_path = os.path.join(self.image_dir, self.image_paths[index])
-        image = torch.from_numpy(cv2.imread(image_path))# .type(torch.int8)
+        image = torch.from_numpy(cv2.imread(image_path)).to(device=self.device)
         landmarks = lm.Landmarks(image, head=self.head, hands=self.hands)
         return (image, landmarks)

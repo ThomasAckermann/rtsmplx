@@ -16,7 +16,9 @@ class Landmarks:
 
     def __init__(self, image, head=False, hands=False):
         super(Landmarks, self).__init__()
-        self.image = image
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+        self.image = image.to(device=self.device)
         self.image_shape = self.image.size()
         self.image_height = self.image_shape[0]
         self.image_width = self.image_shape[1]
@@ -36,17 +38,17 @@ class Landmarks:
     def face_landmarks(self):
         image_face = self.image.reshape(
             self.image_height, self.image_width, self.image_channels
-        )
+        ).to(device=self.device)
         fa = face_alignment.FaceAlignment(
             face_alignment.LandmarksType._2D, flip_input=False
         )
-        prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:, :2]
+        prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:, :2].to(device=self.device)
         prediction[:, 0] = prediction[:, 0] / self.image_height
         prediction[:, 1] = prediction[:, 1] / self.image_width
-        return prediction
+        return prediction.to(device=self.device)
 
     def hand_landmarks(self):
-        image_hands = self.image.numpy()
+        image_hands = self.image.detach().cpu().numpy()
         drawingModule = mp.solutions.drawing_utils
         handsModule = mp.solutions.hands
         with handsModule.Hands(static_image_mode=True) as hands:
@@ -56,18 +58,18 @@ class Landmarks:
                     drawingModule.draw_landmarks(
                         image_hands, handLandmarks, handsModule.HAND_CONNECTIONS
                     )
-        return results
+        return resultsto(device=self.device)
 
     def body_landmarks(self):
         mp_pose = mp.solutions.pose
-        image_body = self.image.numpy()
+        image_body = self.image.cpu().detach().numpy()
         image_body = cv2.cvtColor(image_body, cv2.COLOR_BGR2RGB)
         with mp_pose.Pose(
             static_image_mode=True, model_complexity=2, min_detection_confidence=0.5
         ) as pose:
             results = pose.process(image_body)
-        results = torch.Tensor([[lm.x, lm.y] for lm in results.pose_landmarks.landmark])
-        body_lms = torch.zeros(40, 2)
+        results = torch.Tensor([[lm.x, lm.y] for lm in results.pose_landmarks.landmark]).to(device=self.device)
+        body_lms = torch.zeros(40, 2).to(device=self.device)
         body_lms[:33, :] = results
         body_lms[33] = (results[11] + results[12]) / 2  # torso top
         body_lms[34] = (results[23] + results[24]) / 2  # torso bottom

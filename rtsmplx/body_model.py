@@ -12,6 +12,7 @@ class BodyModel(smplx.body_models.SMPLX):
 
     def __init__(self, model_path, gender="neutral"):
         super(BodyModel, self).__init__(model_path=model_path)
+
         self.gender = gender
         self.bary_coords = self.lmk_bary_coords
         self.bary_faces_idx = self.lmk_faces_idx.type(torch.long)
@@ -19,6 +20,7 @@ class BodyModel(smplx.body_models.SMPLX):
         self.bary_faces = self.faces[self.bary_faces_idx]
         self.vertices = self.v_template
         self.bary_vertices = self.vertices[self.bary_faces]
+        self.body_pose = self.body_pose
 
     def get_joints(self, body_pose=None):
         if body_pose == None:

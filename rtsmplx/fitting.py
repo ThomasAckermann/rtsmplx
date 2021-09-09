@@ -18,30 +18,32 @@ import human_body_prior as hbp
 
 SUPPORT_DIRECTORY = "../support_data"
 VPOSER_DIRECTORY = os.path.join(
-    SUPPORT_DIRECTORY, "vposer_v2_05"
-)  #'TRAINED_MODEL_DIRECTORY'  in this directory the trained model along with the model code exist
+        SUPPORT_DIRECTORY, "vposer_v2_05"
+        )  #'TRAINED_MODEL_DIRECTORY'  in this directory the trained model along with the model code exist
 BODY_MODEL_PATH = os.path.join(
-    SUPPORT_DIRECTORY, "models/smplx/SMPLX_MALE.npz"
-)  #'PATH_TO_SMPLX_model.npz'  obtain from https://smpl-x.is.tue.mpg.de/downloads
+        SUPPORT_DIRECTORY, "models/smplx/SMPLX_MALE.npz"
+        )  #'PATH_TO_SMPLX_model.npz'  obtain from https://smpl-x.is.tue.mpg.de/downloads
+
 
 
 def opt_step(
-    image_landmarks,
-    pose_image_landmarks,
-    face_image_landmarks,
-    body_model,
-    opt,
-    ocam,
-    vposer=None,
-    body_params=None,
-    lr=1e-3,
-    regu=1e-3,
-    body=False,
-    face=False,
-    hands=False,
-    writer=None,
-    idx=0,
-):
+        image_landmarks,
+        pose_image_landmarks,
+        face_image_landmarks,
+        body_model,
+        opt,
+        ocam,
+        vposer=None,
+        body_params=None,
+        lr=1e-3,
+        regu=1e-3,
+        body=False,
+        face=False,
+        hands=False,
+        writer=None,
+        idx=0,
+        device="cpu",
+        ):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     """
     pose_image_landmarks = torch.cat(
@@ -51,12 +53,11 @@ def opt_step(
 
     def closure():
         if body == True:
-            # joints = body_model.get_joints(body_pose=body_pose_params)
             joints = body_model.get_joints(body_pose=body_model.body_pose)
             joints = joints[pose_mapping[:, 0]]
             joints_3d = joints
-            pose_prediction = ocam.forward(joints)
-            pose_loss_pred = pose_loss(pose_prediction, pose_image_landmarks)
+            pose_prediction = ocam.forward(joints).to(device=device)
+            pose_loss_pred = pose_loss(pose_prediction, pose_image_landmarks).to(device=device)
             if writer != None:
                 writer.add_scalar("Pose Loss", pose_loss_pred.detach(), idx)
         else:
@@ -87,31 +88,31 @@ def opt_step(
         vposer_prior = None
         if vposer:
             vposer_joint_rot = (
-                vposer.forward(body_model.body_pose)["pose_body"]
-                .reshape((-1, 63))
-                .detach()
-            )
+                    vposer.forward(body_model.body_pose)["pose_body"]
+                    .reshape((-1, 63))
+                    .detach()
+                    )
             vposer_joints = body_model.get_joints(body_pose=vposer_joint_rot)[
-                pose_mapping[:, 0]
-            ].detach()
+                    pose_mapping[:, 0]
+                    ].detach()
             vposer_prior = vposer_loss(joints_3d, vposer_joints)
             if writer != None:
                 writer.add_scalar("VPoser Prior", vposer_prior.detach(), idx)
 
-        body_pose_prior = torch.linalg.norm(body_model.body_pose)
+        body_pose_prior = torch.linalg.norm(body_model.body_pose).to(device=device)
         if writer != None:
             writer.add_scalar("Joint Rot Prior", body_pose_prior.detach(), idx)
 
         opt.zero_grad()
         loss_pred = loss(
-            pose_loss_pred,
-            face_loss_pred,
-            hands_loss_pred,
-            body_pose_param,
-            body_pose_prior=body_pose_prior,
-            vposer_prior=vposer_prior,
-            regu=regu,
-        )
+                pose_loss_pred,
+                face_loss_pred,
+                hands_loss_pred,
+                body_pose_param,
+                body_pose_prior=body_pose_prior,
+                vposer_prior=vposer_prior,
+                regu=regu,
+                )
         if writer != None:
             writer.add_scalar("Loss with Regularization", loss_pred.detach(), idx)
         loss_pred.backward()
@@ -122,28 +123,84 @@ def opt_step(
 
 
 def run(
-    num_runs,
-    landmarks,
-    pose_image_landmarks,
-    face_image_landmarks,
-    body_model,
-    opt,
-    ocam,
-    body=False,
-    face=False,
-    hands=False,
-    body_params=None,
-    lr=1e-3,
-    regularization=1e-3,
-    print_every=50,
-    vposer=None,
-):
+        num_runs,
+        landmarks,
+        pose_image_landmarks,
+        face_image_landmarks,
+        body_model,
+        opt,
+        ocam,
+        body=False,
+        face=False,
+        hands=False,
+        body_params=None,
+        lr=1e-3,
+        regularization=1e-3,
+        print_every=200,
+        vposer=None,
+        ):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     writer = SummaryWriter()
     for i in range(1, num_runs):
-        # if i % print_every == 0:
-        # print(i)
+        if i % print_every == 0:
+            print(i)
 
         body_model, ocam = opt_step(
+                landmarks,
+                pose_image_landmarks,
+                face_image_landmarks,
+                body_model,
+                opt,
+                ocam,
+                body=body,
+                face=face,
+                hands=hands,
+                body_params=body_params,
+                lr=lr,
+                regu=regularization,
+                writer=writer,
+                vposer=vposer,
+                idx=i,
+                device=device
+                )
+        writer.close()
+    return body_model, ocam
+
+
+def opt_loop(
+        data,
+        body_model,
+        num_runs,
+        body=False,
+        face=False,
+        hands=False,
+        lr=1e-3,
+        regularization=1e-2,
+        vposer=None,
+        cam_type="perspective"
+        ):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    image = data[0]
+    landmarks = data[1]
+    pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
+    pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]].to(device=device)
+    # face_image_landmarks = landmarks.face_landmarks()[17:, :]
+    face_image_landmarks = None
+    if cam_type == "perspective":
+        ocam = cam.PerspectiveCamera().to(device=device)
+    else:
+        ocam = cam.OrthographicCamera().to(device=device)
+    itern = 0
+    for param in body_model.parameters():
+        if itern == 2:
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+        itern += 1
+    opt = optimizer(ocam.parameters(), lr=lr)
+    # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    body_model, ocam = run(
+            int(num_runs / 2),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
@@ -153,109 +210,39 @@ def run(
             body=body,
             face=face,
             hands=hands,
-            body_params=body_params,
+            body_params=None,
             lr=lr,
-            regu=regularization,
-            writer=writer,
+            regularization=regularization,
             vposer=vposer,
-            idx=i,
-        )
-        writer.close()
-    return body_model, ocam
+            )
 
-
-def opt_loop(
-    data,
-    body_model,
-    num_runs,
-    body=False,
-    face=False,
-    hands=False,
-    lr=1e-3,
-    regularization=1e-2,
-    vposer=None,
-):
-    image = data[0]
-    landmarks = data[1]
-    pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
-    pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]]
-    # face_image_landmarks = landmarks.face_landmarks()[17:, :]
-    face_image_landmarks = None
-    ocam = cam.OrthographicCamera()
-    itern = 0
-    for param in body_model.parameters():
-        if itern == 2:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
-        itern += 1
-    # opt = optimizer(body_model.parameters(), lr=lr)
-    opt = optimizer(ocam.parameters(), lr=lr)
-    # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    body_model, ocam = run(
-        int(num_runs / 2),
-        landmarks,
-        pose_image_landmarks,
-        face_image_landmarks,
-        body_model,
-        opt,
-        ocam,
-        body=body,
-        face=face,
-        hands=hands,
-        body_params=None,
-        lr=lr,
-        regularization=regularization,
-        vposer=vposer,
-    )
-    # opt = optimizer(ocam.parameters(), lr=lr)
     opt = optimizer(body_model.parameters(), lr=lr)
     body_model, ocam = run(
-        int(num_runs / 2),
-        landmarks,
-        pose_image_landmarks,
-        face_image_landmarks,
-        body_model,
-        opt,
-        ocam,
-        body=body,
-        face=face,
-        hands=hands,
-        body_params=None,
-        lr=lr,
-        regularization=regularization,
-        vposer=vposer,
-    )
-    """
-    lr = lr * 0.1
-    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    body_model, ocam = run(
-        num_runs,
-        landmarks,
-        pose_image_landmarks,
-        face_image_landmarks,
-        body_model,
-        opt,
-        ocam,
-        body=body,
-        face=face,
-        hands=hands,
-        body_params=None,
-        lr=lr,
-        regularization=regularization,
-        vposer=vposer,
-    )
-    """
-    body_pose_params = body_model.body_pose
+            int(num_runs / 2),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            )
 
+    body_pose_params = body_model.body_pose
     return body_model, body_pose_params, ocam
 
 
 def get_mesh(body_model, body_pose):
-    faces = body_model.faces.reshape(-1, 3).detach().numpy()
+    faces = body_model.faces.reshape(-1, 3).detach().cpu().numpy()
     vertices = (
-        body_model.forward(body_pose=body_pose).vertices.reshape(-1, 3).detach().numpy()
-    )
+            body_model.forward(body_pose=body_pose).vertices.reshape(-1, 3).detach().cpu().numpy()
+            )
     tri_mesh = trimesh.base.Trimesh(vertices=vertices, faces=faces)
     return tri_mesh
 
@@ -276,14 +263,14 @@ def vposer_loss(joints_3d, vposer_joints_3d):
 
 
 def loss(
-    pose_loss,
-    face_loss,
-    hands_loss,
-    body_pose,
-    body_pose_prior=None,
-    vposer_prior=None,
-    regu=1e-3,
-):
+        pose_loss,
+        face_loss,
+        hands_loss,
+        body_pose,
+        body_pose_prior=None,
+        vposer_prior=None,
+        regu=1e-3,
+        ):
     loss_val = pose_loss + face_loss + hands_loss
 
     # priors
@@ -322,7 +309,7 @@ def plot_landmarks(ocam, body_model, image_landmarks):
     joints = body_model.get_joints(body_pose=body_model.body_pose)
     joints = joints[pose_mapping[:, 0]]
     pose_prediction = ocam.forward(joints)
-    return (pose_image_landmarks.numpy(), pose_prediction.detach().numpy())
+    return (pose_image_landmarks.detach().numpy(), pose_prediction.detach().numpy())
 
 
 if __name__ == "__main__":
