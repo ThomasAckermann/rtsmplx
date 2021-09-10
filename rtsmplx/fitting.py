@@ -199,25 +199,6 @@ def opt_loop(
             param.requires_grad = False
         itern += 1
     # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    print("Start Optimizing Camera and Pose together")
-    body_model, ocam = run(
-            int(num_runs / 3),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            body=body,
-            face=face,
-            hands=hands,
-            body_params=None,
-            lr=lr,
-            regularization=regularization,
-            vposer=vposer,
-            print_every=print_every,
-            )
     print("Start Optimizing Camera")
     opt = optimizer(ocam.parameters(), lr=lr)
     body_model, ocam = run(
@@ -239,6 +220,25 @@ def opt_loop(
             )
     opt = optimizer(body_model.parameters(), lr=lr)
     print("Start Optimizing Body Pose")
+    body_model, ocam = run(
+            int(num_runs / 3),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
+            )
+    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    print("Start Optimizing Camera and Pose together")
     body_model, ocam = run(
             int(num_runs / 3),
             landmarks,

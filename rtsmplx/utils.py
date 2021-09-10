@@ -8,6 +8,7 @@ import trimesh
 import pytorch3d
 import io
 import pytorch3d
+import pytorch3d.io
 from pytorch3d.renderer import TexturesVertex
 
 
@@ -101,4 +102,12 @@ def trimesh_to_torch(trimesh, textures=None):
 
     torchmesh = pytorch3d.structures.Meshes(verts=vertices,faces=faces, textures=textures)
     return torchmesh
+
+def save_mesh(mesh, path):
+    mesh = trimesh_to_torch(mesh)
+    vertices = mesh.verts_list()[0]
+    faces = mesh.faces_list()[0]
+    pytorch3d.io.save_obj(path, vertices, faces)
+
+    return "Done"
 
