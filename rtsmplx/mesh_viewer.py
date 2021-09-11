@@ -66,34 +66,34 @@ def render_trimesh_no_transform(trimesh, xmag=1.0, ymag=1.0, imgh=400, imgw=400)
     return color, depth
 
 
-def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=50.0, azimuth=0.0):
-
-    mesh = utils.trimesh_to_torch(trimesh)
-    translation_mat, rotation_mat = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
-    translation_mat = translation_mat
-    rotation_mat = rotation_mat
+def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=0.0, azimuth=180.0, image_size=512):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    mesh = utils.trimesh_to_torch(trimesh).to(device=device)
+    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
     fx = ocam.focal_length_x
     fy = ocam.focal_length_y
     center = ocam.center
     calibration_mat = torch.tensor([[[fx,0,center[0],0],
         [0,fy,center[1],0],
         [0,0,0,1],
-        [0,0,1,0]]])
+        [0,0,1,0]]]).to(device=device)
+    R, T = look_at_view_transform(distance, elevation, azimuth)
 
-    render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(R=rotation_mat, T=translation_mat, K=calibration_mat)
+    render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(R=R, T=T, K=calibration_mat, device=device)
     raster_settings = RasterizationSettings(
-            image_size=512,
+            image_size=image_size,
             blur_radius=0.0,
             faces_per_pixel=1,
             )
 
-    lights = PointLights(location=[[0.0, 0.0, -3.0]])
+    lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
     renderer = MeshRenderer(
             rasterizer=MeshRasterizer(
                 cameras=render_camera,
                 raster_settings=raster_settings
                 ),
             shader=SoftPhongShader(
+                device=device,
                 cameras=render_camera,
                 lights=lights
                 )
@@ -101,3 +101,4 @@ def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=50.0, 
 
     image = renderer(mesh)
     return image
+
