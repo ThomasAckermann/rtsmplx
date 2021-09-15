@@ -8,14 +8,16 @@ from rtsmplx.utils import transform_mat_persp
 class OrthographicCamera(nn.Module):
     """Orthographic camera model"""
 
-    def __init__(self):
+    def __init__(self, batch):
         super(OrthographicCamera, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
+        self.batch = batch
+
         # register scale, rotation and translation parameters
-        scale = torch.ones(1, device=self.device)
-        rotation = torch.zeros(3, device=self.device)
-        translation = torch.zeros((3,1), device=self.device)
+        scale = torch.ones(self.batch, 1, device=self.device)
+        rotation = torch.zeros(self.batch, 3, device=self.device)
+        translation = torch.zeros((self.batch, 3, 1), device=self.device)
 
         scale = nn.Parameter(scale, requires_grad=True)
         rotation = nn.Parameter(rotation, requires_grad=True)
@@ -27,8 +29,8 @@ class OrthographicCamera(nn.Module):
 
     def forward(self, points):
         points_shape = points.shape
-        points_reshape = torch.ones([points.shape[0], 4], device=self.device)
-        points_reshape[:, :3] = points
+        points_reshape = torch.ones([self.batch, points.shape[0], 4], device=self.device)
+        points_reshape[:, :, :3] = points
         transform = transform_mat(self.rotation, self.translation, scale=self.scale, device=self.device)
         projected_points = points_reshape @ transform.T
         projected_points = projected_points[:, :2]
@@ -54,6 +56,7 @@ class PerspectiveCamera(nn.Module):
         # register rotation and translation parameters
         rotation = torch.zeros(3)
         translation = torch.zeros((3,1))
+
 
         rotation = nn.Parameter(rotation, requires_grad=True)
         translation = nn.Parameter(translation, requires_grad=True)
