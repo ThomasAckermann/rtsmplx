@@ -19,10 +19,10 @@ import human_body_prior as hbp
 SUPPORT_DIRECTORY = "../support_data"
 VPOSER_DIRECTORY = os.path.join(
         SUPPORT_DIRECTORY, "vposer_v2_05"
-        )  #'TRAINED_MODEL_DIRECTORY'  in this directory the trained model along with the model code exist
+        )
 BODY_MODEL_PATH = os.path.join(
         SUPPORT_DIRECTORY, "models/smplx/SMPLX_MALE.npz"
-        )  #'PATH_TO_SMPLX_model.npz'  obtain from https://smpl-x.is.tue.mpg.de/downloads
+        )
 
 def opt_step(
         image_landmarks,
@@ -52,6 +52,7 @@ def opt_step(
 
     def closure():
         if body == True:
+            body_model.body_pose = vposer.decode(body_model.latent_j)
             joints = body_model.get_joints(body_pose=body_model.body_pose)
             joints = joints[pose_mapping[:, 0]]
             joints_3d = joints
@@ -83,20 +84,6 @@ def opt_step(
             hands_loss_pred = 0
         body_pose_param = body_model.body_pose
 
-        # VPoser prior
-        vposer_prior = None
-        if vposer:
-            vposer_joint_rot = (
-                    vposer.forward(body_model.body_pose)["pose_body"]
-                    .reshape((-1, 63))
-                    .detach()
-                    )
-            vposer_joints = body_model.get_joints(body_pose=vposer_joint_rot)[
-                    pose_mapping[:, 0]
-                    ].detach()
-            vposer_prior = vposer_loss(joints_3d, vposer_joints)
-            if writer != None:
-                writer.add_scalar("VPoser Prior", vposer_prior.detach(), idx)
 
         body_pose_prior = torch.linalg.norm(body_model.body_pose).to(device=device)
         if writer != None:
@@ -281,10 +268,6 @@ def face_loss(bary_coords_2d, landmarks_2d):
     return loss_func(bary_coords_2d, landmarks_2d)
 
 
-def vposer_loss(joints_3d, vposer_joints_3d):
-    loss_func = mse_loss()
-    return loss_func(joints_3d, vposer_joints_3d)
-
 
 def loss(
         pose_loss,
@@ -292,7 +275,6 @@ def loss(
         hands_loss,
         body_pose,
         body_pose_prior=None,
-        vposer_prior=None,
         regu=1e-3,
         ):
     loss_val = pose_loss + face_loss + hands_loss
@@ -300,8 +282,6 @@ def loss(
     # priors
     if body_pose_prior:
         loss_val = loss_val + regu * body_pose_prior
-    if vposer_prior:
-        loss_val = loss_val + regu * vposer_prior
 
     return loss_val
 
