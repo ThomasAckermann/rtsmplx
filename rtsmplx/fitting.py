@@ -303,14 +303,13 @@ def get_mesh(body_model, body_pose):
 
 
 def pose_loss(joint_coords_2d, landmarks_2d):
-    loss_func = mse_loss()
+    loss_func = l1loss()
     return loss_func(joint_coords_2d, landmarks_2d)
 
 
 def face_loss(bary_coords_2d, landmarks_2d):
-    loss_func = mse_loss()
+    loss_func = l1loss()
     return loss_func(bary_coords_2d, landmarks_2d)
-
 
 
 def loss(
@@ -332,6 +331,10 @@ def loss(
 
 def mse_loss():
     return nn.MSELoss()
+
+
+def l1loss():
+    return nn.L1Loss()
 
 
 def optimizer(params, lr=1e-3):
