@@ -52,8 +52,11 @@ def opt_step(
 
     def closure():
         if body == True:
-            body_model.body_pose = vposer.decode(body_model.latent_j)
-            joints = body_model.get_joints(body_pose=body_model.body_pose)
+            # print(vposer.decode(body_model.latent_j))
+            body_model.body_pose = nn.Parameter(vposer.decode(body_model.latent_j)["pose_body"])
+            body_pose = vposer.decode(body_model.latent_j)["pose_body"]
+            # body_model.body_pose.requires_grad = False
+            joints = body_model.get_joints(body_pose=body_pose)#body_model.body_pose)
             joints = joints[pose_mapping[:, 0]]
             joints_3d = joints
             pose_prediction = ocam.forward(joints).to(device=device)
@@ -82,10 +85,11 @@ def opt_step(
                 writer.add_scalar("Hands Loss", hands_loss_pred.detach(), idx)
         else:
             hands_loss_pred = 0
-        body_pose_param = body_model.body_pose
+        body_pose_param = body_pose #body_model.body_pose
 
 
-        body_pose_prior = torch.linalg.norm(body_model.body_pose).to(device=device)
+        # body_pose_prior = torch.linalg.norm(body_model.body_pose).to(device=device)
+        body_pose_prior = torch.linalg.norm(body_pose).to(device=device)
         if writer != None:
             writer.add_scalar("Joint Rot Prior", body_pose_prior.detach(), idx)
 
@@ -96,7 +100,6 @@ def opt_step(
                 hands_loss_pred,
                 body_pose_param,
                 body_pose_prior=body_pose_prior,
-                vposer_prior=vposer_prior,
                 regu=regu,
                 )
         if writer != None:
@@ -104,6 +107,7 @@ def opt_step(
         loss_pred.backward()
         if idx % print_every == 0:
             print("Iteration:", idx, "Loss:", loss_pred.detach().cpu().numpy())
+        body_model.body_pose = nn.Parameter(body_pose)
         return loss_pred
 
     opt.step(closure)
@@ -180,16 +184,16 @@ def opt_loop(
         ocam = cam.OrthographicCamera().to(device=device)
     itern = 0
     for param in body_model.parameters():
-        if itern == 2:
+        if itern == 10:
             param.requires_grad = True
         else:
             param.requires_grad = False
         itern += 1
-    # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+
     print("Start Optimizing Camera")
     opt = optimizer(ocam.parameters(), lr=lr)
     body_model, ocam = run(
-            int(num_runs / 3),
+            int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
@@ -208,7 +212,7 @@ def opt_loop(
     opt = optimizer(body_model.parameters(), lr=lr)
     print("Start Optimizing Body Pose")
     body_model, ocam = run(
-            int(num_runs / 3),
+            int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
@@ -224,6 +228,46 @@ def opt_loop(
             vposer=vposer,
             print_every=print_every,
             )
+    print("Start Optimizing Camera")
+    opt = optimizer(ocam.parameters(), lr=lr)
+    body_model, ocam = run(
+            int(num_runs / 4),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
+            )
+    opt = optimizer(body_model.parameters(), lr=lr)
+    print("Start Optimizing Body Pose")
+    body_model, ocam = run(
+            int(num_runs / 4),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
+            )
+
+    """
     opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
     print("Start Optimizing Camera and Pose together")
     body_model, ocam = run(
@@ -243,7 +287,7 @@ def opt_loop(
             vposer=vposer,
             print_every=print_every,
             )
-
+    """
 
     body_pose_params = body_model.body_pose
     return body_model, body_pose_params, ocam
@@ -275,7 +319,7 @@ def loss(
         hands_loss,
         body_pose,
         body_pose_prior=None,
-        regu=1e-3,
+        regu=1e-4,
         ):
     loss_val = pose_loss + face_loss + hands_loss
 
