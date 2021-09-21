@@ -52,10 +52,11 @@ def opt_step(
 
     def closure():
         if body == True:
-            # print(vposer.decode(body_model.latent_j))
-            body_model.body_pose = nn.Parameter(vposer.decode(body_model.latent_j)["pose_body"])
-            body_pose = vposer.decode(body_model.latent_j)["pose_body"]
-            # body_model.body_pose.requires_grad = False
+            if vposer==None:
+                body_pose = body_model.body_pose
+            else:
+                body_model.body_pose = nn.Parameter(vposer.decode(body_model.latent_j)["pose_body"])
+                body_pose = vposer.decode(body_model.latent_j)["pose_body"]
             joints = body_model.get_joints(body_pose=body_pose)#body_model.body_pose)
             joints = joints[pose_mapping[:, 0]]
             joints_3d = joints
@@ -130,10 +131,11 @@ def run(
         regularization=1e-3,
         print_every=200,
         vposer=None,
+        writer=None,
+        idx=0,
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    writer = SummaryWriter()
-    for i in range(1, num_runs):
+    for i in range(idx, idx + num_runs):
         body_model, ocam = opt_step(
                 landmarks,
                 pose_image_landmarks,
@@ -153,9 +155,9 @@ def run(
                 device=device,
                 print_every=print_every,
                 )
+        idx = i
 
-        writer.close()
-    return body_model, ocam
+    return body_model, ocam, idx
 
 
 def opt_loop(
@@ -184,15 +186,17 @@ def opt_loop(
         ocam = cam.OrthographicCamera().to(device=device)
     itern = 0
     for param in body_model.parameters():
-        if itern == 10:
+        if itern in [2, 10]:
             param.requires_grad = True
         else:
             param.requires_grad = False
         itern += 1
+    writer = SummaryWriter()
 
+    idx = 0
     print("Start Optimizing Camera")
     opt = optimizer(ocam.parameters(), lr=lr)
-    body_model, ocam = run(
+    body_model, ocam, idx = run(
             int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
@@ -208,10 +212,55 @@ def opt_loop(
             regularization=regularization,
             vposer=vposer,
             print_every=print_every,
+            writer=writer,
+            idx=idx
+            )
+    print(idx)
+    opt = optimizer(body_model.parameters(), lr=lr)
+    print("Start Optimizing Body Pose")
+    body_model, ocam, idx = run(
+            int(num_runs / 4),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
+            writer=writer,
+            idx=idx
+            )
+    print("Start Optimizing Camera")
+    opt = optimizer(ocam.parameters(), lr=lr)
+    body_model, ocam, idx = run(
+            int(num_runs / 4),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            body=body,
+            face=face,
+            hands=hands,
+            body_params=None,
+            lr=lr,
+            regularization=regularization,
+            vposer=vposer,
+            print_every=print_every,
+            writer=writer,
+            idx=idx
             )
     opt = optimizer(body_model.parameters(), lr=lr)
     print("Start Optimizing Body Pose")
-    body_model, ocam = run(
+    body_model, ocam, idx = run(
             int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
@@ -227,68 +276,11 @@ def opt_loop(
             regularization=regularization,
             vposer=vposer,
             print_every=print_every,
-            )
-    print("Start Optimizing Camera")
-    opt = optimizer(ocam.parameters(), lr=lr)
-    body_model, ocam = run(
-            int(num_runs / 4),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            body=body,
-            face=face,
-            hands=hands,
-            body_params=None,
-            lr=lr,
-            regularization=regularization,
-            vposer=vposer,
-            print_every=print_every,
-            )
-    opt = optimizer(body_model.parameters(), lr=lr)
-    print("Start Optimizing Body Pose")
-    body_model, ocam = run(
-            int(num_runs / 4),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            body=body,
-            face=face,
-            hands=hands,
-            body_params=None,
-            lr=lr,
-            regularization=regularization,
-            vposer=vposer,
-            print_every=print_every,
+            writer=writer,
+            idx=idx
             )
 
-    """
-    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    print("Start Optimizing Camera and Pose together")
-    body_model, ocam = run(
-            int(num_runs / 3),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            body=body,
-            face=face,
-            hands=hands,
-            body_params=None,
-            lr=lr,
-            regularization=regularization,
-            vposer=vposer,
-            print_every=print_every,
-            )
-    """
-
+    writer.close()
     body_pose_params = body_model.body_pose
     return body_model, body_pose_params, ocam
 
