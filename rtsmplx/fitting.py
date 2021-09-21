@@ -93,6 +93,8 @@ def opt_step(
         if writer != None:
             writer.add_scalar("Joint Rot Prior", body_pose_prior.detach(), idx)
 
+        elbow_knee_prior = elbow_knee_prior_loss(body_pose)
+
         opt.zero_grad()
         loss_pred = loss(
                 pose_loss_pred,
@@ -100,6 +102,7 @@ def opt_step(
                 hands_loss_pred,
                 body_pose_param,
                 body_pose_prior=body_pose_prior,
+                elbow_knee_prior=elbow_knee_prior,
                 regu=regu,
                 )
         if writer != None:
@@ -311,6 +314,12 @@ def face_loss(bary_coords_2d, landmarks_2d):
     loss_func = mse_loss()
     return loss_func(bary_coords_2d, landmarks_2d)
 
+def elbow_knee_prior_loss(body_pose):
+    # 4 5 elbow
+    # 18 19 knee
+    ek_id = [4,5,18,19]
+    ek_prior = torch.sum(torch.exp(body_pose[:, ek_id]))
+    return None
 
 
 def loss(
@@ -319,6 +328,7 @@ def loss(
         hands_loss,
         body_pose,
         body_pose_prior=None,
+        elbow_knee_prior=None,
         regu=1e-4,
         ):
     loss_val = pose_loss + face_loss + hands_loss
@@ -326,7 +336,8 @@ def loss(
     # priors
     if body_pose_prior:
         loss_val = loss_val + regu * body_pose_prior
-
+    if elbow_knee_prior:
+        loss_val = loss_val + regu * body_pose_prior
     return loss_val
 
 
