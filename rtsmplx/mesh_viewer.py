@@ -102,3 +102,32 @@ def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=0.0, a
     image = renderer(mesh)
     return image
 
+
+def render_trimesh_orthographic_torch(trimesh, ocam, imgh=512, imgw=512):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    mesh = utils.trimesh_to_torch(trimesh).to(device=device)
+    T, R, scale_xyz = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach(), ocam.scale.detach())
+
+    render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(R=R, T=T, device=device, scale_xyz=scale_xyz)
+    raster_settings = RasterizationSettings(
+            image_size=[imgh, imgw],
+            blur_radius=0.0,
+            faces_per_pixel=1,
+            )
+
+    lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
+    renderer = MeshRenderer(
+            rasterizer=MeshRasterizer(
+                cameras=render_camera,
+                raster_settings=raster_settings
+                ),
+            shader=SoftPhongShader(
+                device=device,
+                cameras=render_camera,
+                lights=lights
+                )
+            )
+
+    image = renderer(mesh)
+    return image
+

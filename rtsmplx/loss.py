@@ -1,18 +1,21 @@
 import torch
 import torch.nn as nn
 import rtsmplx.utils as utils
+from rtsmplx.lm_joint_mapping import lm_weight_mapping
 
 
 class ModelLoss(nn.Module):
     def __init__(self):# , search_tree, pen_distance, filter_faces):
         super(ModelLoss, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        pose_prior_weight = 1e-3 * torch.ones(1)
+        pose_prior_weight = 5e-3 * torch.ones(1)
         self.register_buffer("pose_prior_weight", pose_prior_weight)
-        elbow_knee_weight = 3e-3 * torch.ones(1)
+        elbow_knee_weight = 1e-4 * torch.ones(1)
         self.register_buffer("elbow_knee_weight", elbow_knee_weight)
-        self.register_buffer("joint_dist_weight", torch.ones(1))
+        self.register_buffer("joint_dist_weight", 2 * torch.ones(1))
         self.robustifier = utils.robustifier_func(rho=100)
+        lm_weight = torch.Tensor(list(lm_weight_mapping().values())).reshape((18,1))
+        self.register_buffer("joint_weights", lm_weight)
 
     """
     def interpenetration_loss(self, search_tree, pen_distance, filter_faces):
@@ -45,7 +48,7 @@ class ModelLoss(nn.Module):
         # 4 5 elbow
         # 18 19 knee
         ek_id = [4,5,18,19]
-        ek_prior = torch.sum(torch.exp(body_pose[:, ek_id]))
+        ek_prior = torch.sum(torch.exp(-1*body_pose[:, ek_id]))
         return ek_prior
 
     def body_pose_prior(self, body_pose):
@@ -53,7 +56,8 @@ class ModelLoss(nn.Module):
 
     def forward(self, body_pose, joints_2d, landmarks_2d):
         l1loss = nn.L1Loss()
-        pose_loss = torch.sum(self.robustifier(joints_2d - landmarks_2d)) * self.joint_dist_weight
+        # pose_loss = torch.sum(self.robustifier(joints_2d - landmarks_2d)) * self.joint_dist_weight
+        pose_loss = l1loss(self.joint_weights*joints_2d, self.joint_weights*landmarks_2d) * self.joint_dist_weight
         face_loss = 0.0
         hands_loss = 0.0
         body_pose_prior = self.body_pose_prior(body_pose)

@@ -43,5 +43,11 @@ def get_lm_mapping():
     return lm_mapping
 
 
+def lm_weight_mapping():
+    lm_weights = {
+            1:0.5, 2:0.5, 4:1.5, 5:1.5, 7:1.5, 8:1.5, 10:1, 11:1, 15:0.5, 16:1.5, 17:1.5, 18:1.5, 19:1.5, 20:1, 21:1, 22:0.5, 23:.5, 24:0.5
+            }
+    return lm_weights
+
 if __name__ == "__main__":
     print(get_lm_mapping())

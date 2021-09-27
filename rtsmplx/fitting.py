@@ -117,7 +117,7 @@ def opt_step(
         """
 
         opt.zero_grad()
-        loss = model_loss.forward(body_pose_param, pose_prediction, pose_image_landmarks)
+        loss = model_loss.forward(body_model.body_pose, pose_prediction, pose_image_landmarks)
         if writer != None:
             writer.add_scalar("Loss with Regularization", loss.detach(), idx)
         loss.backward()
