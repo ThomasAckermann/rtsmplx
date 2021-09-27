@@ -2,6 +2,7 @@ import cv2
 import math
 import smplx
 import torch
+import torch.nn as nn
 import numpy as np
 import pyrender
 import trimesh
@@ -111,3 +112,16 @@ def save_mesh(mesh, path):
 
     return "Done"
 
+class robustifier_func(nn.Module):
+    # geaman mclure function
+    def __init__(self, rho=1):
+        super(robustifier_func, self).__init__()
+        self.rho = rho
+
+    def extra_repr(self):
+        return 'rho = {}'.format(self.rho)
+
+    def forward(self, residual):
+        squared_res = residual ** 2
+        dist = torch.div(squared_res, squared_res + self.rho ** 2)
+        return self.rho ** 2 * dist

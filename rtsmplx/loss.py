@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import rtsmplx.utils as utils
 
 
 class ModelLoss(nn.Module):
@@ -10,6 +11,8 @@ class ModelLoss(nn.Module):
         self.register_buffer("pose_prior_weight", pose_prior_weight)
         elbow_knee_weight = 1e-3 * torch.ones(1)
         self.register_buffer("elbow_knee_weight", elbow_knee_weight)
+        self.register_buffer("joint_dist_weight", torch.ones(1))
+        self.robustifier = utils.robustifier_func(rho=100)
 
     """
     def interpenetration_loss(self, search_tree, pen_distance, filter_faces):
@@ -49,11 +52,13 @@ class ModelLoss(nn.Module):
         return torch.linalg.norm(body_pose).to(device=self.device)
 
     def forward(self, body_pose, joints_2d, landmarks_2d):
-        pose_loss = self.pose_loss(joints_2d, landmarks_2d)
+        l1loss = nn.L1Loss()
+        pose_loss = l1loss(self.robustifier(joints_2d), landmarks_2d) * self.joint_dist_weight
         face_loss = 0.0
         hands_loss = 0.0
         body_pose_prior = self.body_pose_prior(body_pose)
         elbow_knee_prior = self.elbow_knee_prior_loss(body_pose)
+
         # pen_loss = self.interpenetration_loss(self.search_tree, self.pen_distance, self.filter_faces)
 
         loss_val = pose_loss + face_loss + hands_loss
