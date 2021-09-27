@@ -42,6 +42,7 @@ def opt_step(
         idx=0,
         device="cpu",
         print_every=200,
+        interpenetration=False,
         ):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     """
@@ -96,6 +97,42 @@ def opt_step(
 
         elbow_knee_prior = elbow_knee_prior_loss(body_pose)
 
+        # Create the search tree
+        pen_loss = None
+        search_tree = None
+        pen_distance = None
+        filter_faces = None
+        if interpenetration == True:
+            from mesh_intersection.bvh_search_tree import BVH
+            import mesh_intersection.loss as collisions_loss
+            from mesh_intersection.filter_faces import FilterFaces
+
+            assert use_cuda, 'Interpenetration term can only be used with CUDA'
+            assert torch.cuda.is_available(), \
+                'No CUDA Device! Interpenetration term can only be used' + \
+                ' with CUDA'
+
+            search_tree = BVH(max_collisions=max_collisions)
+
+            pen_distance = \
+                collisions_loss.DistanceFieldPenetrationLoss(
+                    sigma=df_cone_height, point2plane=point2plane,
+                    vectorized=True, penalize_outside=penalize_outside)
+
+            if part_segm_fn:
+                # Read the part segmentation
+                part_segm_fn = os.path.expandvars(part_segm_fn)
+                with open(part_segm_fn, 'rb') as faces_parents_file:
+                    face_segm_data = pickle.load(faces_parents_file,
+                                                encoding='latin1')
+                faces_segm = face_segm_data['segm']
+                faces_parents = face_segm_data['parents']
+                # Create the module used to filter invalid collision pairs
+                filter_faces = FilterFaces(
+                    faces_segm=faces_segm, faces_parents=faces_parents,
+                    ign_part_pairs=ign_part_pairs).to(device=device)
+            pen_loss = interpenetration_loss(search_tree, pendistance, filter_faces)
+
         opt.zero_grad()
         loss_pred = loss(
                 pose_loss_pred,
@@ -104,6 +141,7 @@ def opt_step(
                 body_pose_param,
                 body_pose_prior=body_pose_prior,
                 elbow_knee_prior=elbow_knee_prior,
+                pen_loss=pen_loss,
                 regu=regu,
                 )
         if writer != None:
@@ -136,6 +174,7 @@ def run(
         vposer=None,
         writer=None,
         idx=0,
+        interpenetration=False,
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     for i in range(idx, idx + num_runs):
@@ -157,6 +196,7 @@ def run(
                 idx=i,
                 device=device,
                 print_every=print_every,
+                interpenetration=interpenetration,
                 )
         idx = i
 
@@ -174,7 +214,8 @@ def opt_loop(
         regularization=1e-2,
         vposer=None,
         cam_type="perspective",
-        print_every=200
+        print_every=200,
+        interpenetration=False,
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     image = data[0]
@@ -216,7 +257,8 @@ def opt_loop(
             vposer=vposer,
             print_every=print_every,
             writer=writer,
-            idx=idx
+            idx=idx,
+            interpenetration=interpenetration,
             )
     print(idx)
     opt = optimizer(body_model.parameters(), lr=lr)
@@ -238,7 +280,8 @@ def opt_loop(
             vposer=vposer,
             print_every=print_every,
             writer=writer,
-            idx=idx
+            interpenetration=interpenetration,
+            idx=idx,
             )
     print("Start Optimizing Camera")
     opt = optimizer(ocam.parameters(), lr=lr)
@@ -259,7 +302,8 @@ def opt_loop(
             vposer=vposer,
             print_every=print_every,
             writer=writer,
-            idx=idx
+            interpenetration=interpenetration,
+            idx=idx,
             )
     opt = optimizer(body_model.parameters(), lr=lr)
     print("Start Optimizing Body Pose")
@@ -280,7 +324,8 @@ def opt_loop(
             vposer=vposer,
             print_every=print_every,
             writer=writer,
-            idx=idx
+            interpenetration=interpenetration,
+            idx=idx,
             )
 
     writer.close()
@@ -295,6 +340,22 @@ def get_mesh(body_model, body_pose):
             )
     tri_mesh = trimesh.base.Trimesh(vertices=vertices, faces=faces)
     return tri_mesh
+
+
+def interpenetration_loss(search_tree, pen_distance, filter_faces):
+    pen_loss = 0.0
+    batch_size = projected_joints.shape[0]
+    triangles = torch.index_select(
+        body_model_output.vertices, 1,
+        body_model_faces).view(batch_size, -1, 3, 3)
+
+    with torch.no_grad():
+        collision_idxs = search_tree(triangles)
+
+    if collision_idxs.ge(0).sum().item() > 0:
+        pen_loss = torch.sum(pen_distance(triangles, collision_idxs))
+
+    return pen_loss
 
 
 def pose_loss(joint_coords_2d, landmarks_2d):
@@ -320,15 +381,20 @@ def loss(
         body_pose,
         body_pose_prior=None,
         elbow_knee_prior=None,
-        regu=1e-4,
+        pen_loss = None,
+        regu=[1e-4, 1e-4],
         ):
     loss_val = pose_loss + face_loss + hands_loss
 
     # priors
+    if len(regu) == 1:
+        regu = [regu, regu, regu]
     if body_pose_prior:
-        loss_val = loss_val + regu * body_pose_prior
+        loss_val = loss_val + regu[0] * body_pose_prior
     if elbow_knee_prior:
-        loss_val = loss_val + regu * body_pose_prior
+        loss_val = loss_val + regu[1] * elbow_knee_prior
+    if pen_loss:
+        loss_val = loss_val + regu[2] * pen_loss
     return loss_val
 
 
