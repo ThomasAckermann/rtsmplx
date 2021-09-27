@@ -125,3 +125,4 @@ class robustifier_func(nn.Module):
         squared_res = residual ** 2
         dist = torch.div(squared_res, squared_res + self.rho ** 2)
         return self.rho ** 2 * dist
+
