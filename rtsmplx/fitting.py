@@ -7,6 +7,7 @@ import rtsmplx.dataset as dataset
 import rtsmplx.body_model as bm
 import rtsmplx.camera as cam
 import rtsmplx.utils as utils
+import rtsmplx.loss
 import rtsmplx.lm_joint_mapping
 import pytorch3d.structures
 import trimesh
@@ -19,10 +20,10 @@ import human_body_prior as hbp
 SUPPORT_DIRECTORY = "../support_data"
 VPOSER_DIRECTORY = os.path.join(
         SUPPORT_DIRECTORY, "vposer_v2_05"
-        )  #'TRAINED_MODEL_DIRECTORY'  in this directory the trained model along with the model code exist
+        )
 BODY_MODEL_PATH = os.path.join(
         SUPPORT_DIRECTORY, "models/smplx/SMPLX_MALE.npz"
-        )  #'PATH_TO_SMPLX_model.npz'  obtain from https://smpl-x.is.tue.mpg.de/downloads
+        )
 
 def opt_step(
         image_landmarks,
@@ -31,17 +32,16 @@ def opt_step(
         body_model,
         opt,
         ocam,
-        vposer=None,
-        body_params=None,
+        vposer,
+        model_loss,
         lr=1e-3,
-        regu=1e-3,
-        body=False,
         face=False,
         hands=False,
         writer=None,
         idx=0,
         device="cpu",
         print_every=200,
+        interpenetration=False,
         ):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     """
@@ -51,16 +51,12 @@ def opt_step(
     """
 
     def closure():
-        if body == True:
-            joints = body_model.get_joints(body_pose=body_model.body_pose)
-            joints = joints[pose_mapping[:, 0]]
-            joints_3d = joints
-            pose_prediction = ocam.forward(joints).to(device=device)
-            pose_loss_pred = pose_loss(pose_prediction, pose_image_landmarks).to(device=device)
-            if writer != None:
-                writer.add_scalar("Pose Loss", pose_loss_pred.detach(), idx)
-        else:
-            pose_loss_pred = 0
+        body_model.body_pose = nn.Parameter(vposer.decode(body_model.latent_j)["pose_body"])
+        body_pose = vposer.decode(body_model.latent_j)["pose_body"]
+        joints = body_model.get_joints(body_pose=body_pose)
+        joints = joints[pose_mapping[:, 0]]
+        joints_3d = joints
+        pose_prediction = ocam.forward(joints).to(device=device)
 
         if face == True:
             bary_coords = body_model.bary_coords
@@ -81,43 +77,54 @@ def opt_step(
                 writer.add_scalar("Hands Loss", hands_loss_pred.detach(), idx)
         else:
             hands_loss_pred = 0
-        body_pose_param = body_model.body_pose
+        body_pose_param = body_pose #body_model.body_pose
 
-        # VPoser prior
-        vposer_prior = None
-        if vposer:
-            vposer_joint_rot = (
-                    vposer.forward(body_model.body_pose)["pose_body"]
-                    .reshape((-1, 63))
-                    .detach()
-                    )
-            vposer_joints = body_model.get_joints(body_pose=vposer_joint_rot)[
-                    pose_mapping[:, 0]
-                    ].detach()
-            vposer_prior = vposer_loss(joints_3d, vposer_joints)
-            if writer != None:
-                writer.add_scalar("VPoser Prior", vposer_prior.detach(), idx)
+        # Create the search tree    
+        """
+        pen_loss = None
+        search_tree = None
+        pen_distance = None
+        filter_faces = None
+        if interpenetration == True:
+            from mesh_intersection.bvh_search_tree import BVH
+            import mesh_intersection.loss as collisions_loss
+            from mesh_intersection.filter_faces import FilterFaces
 
-        body_pose_prior = torch.linalg.norm(body_model.body_pose).to(device=device)
-        if writer != None:
-            writer.add_scalar("Joint Rot Prior", body_pose_prior.detach(), idx)
+            assert use_cuda, 'Interpenetration term can only be used with CUDA'
+            assert torch.cuda.is_available(), \
+                'No CUDA Device! Interpenetration term can only be used' + \
+                ' with CUDA'
+
+            search_tree = BVH(max_collisions=max_collisions)
+
+            pen_distance = \
+                collisions_loss.DistanceFieldPenetrationLoss(
+                    sigma=df_cone_height, point2plane=point2plane,
+                    vectorized=True, penalize_outside=penalize_outside)
+
+            if part_segm_fn:
+                # Read the part segmentation
+                part_segm_fn = os.path.expandvars(part_segm_fn)
+                with open(part_segm_fn, 'rb') as faces_parents_file:
+                    face_segm_data = pickle.load(faces_parents_file,
+                                                encoding='latin1')
+                faces_segm = face_segm_data['segm']
+                faces_parents = face_segm_data['parents']
+                # Create the module used to filter invalid collision pairs
+                filter_faces = FilterFaces(
+                    faces_segm=faces_segm, faces_parents=faces_parents,
+                    ign_part_pairs=ign_part_pairs).to(device=device)
+        """
 
         opt.zero_grad()
-        loss_pred = loss(
-                pose_loss_pred,
-                face_loss_pred,
-                hands_loss_pred,
-                body_pose_param,
-                body_pose_prior=body_pose_prior,
-                vposer_prior=vposer_prior,
-                regu=regu,
-                )
+        loss = model_loss.forward(body_pose_param, pose_prediction, pose_image_landmarks)
         if writer != None:
-            writer.add_scalar("Loss with Regularization", loss_pred.detach(), idx)
-        loss_pred.backward()
+            writer.add_scalar("Loss with Regularization", loss.detach(), idx)
+        loss.backward()
         if idx % print_every == 0:
-            print("Iteration:", idx, "Loss:", loss_pred.detach().cpu().numpy())
-        return loss_pred
+            print("Iteration:", idx, "Loss:", loss.detach().cpu().numpy())
+        body_model.body_pose = nn.Parameter(body_pose)
+        return loss
 
     opt.step(closure)
     return (body_model, ocam)
@@ -131,18 +138,18 @@ def run(
         body_model,
         opt,
         ocam,
-        body=False,
+        vposer,
+        model_loss,
         face=False,
         hands=False,
-        body_params=None,
         lr=1e-3,
-        regularization=1e-3,
         print_every=200,
-        vposer=None,
+        writer=None,
+        idx=0,
+        interpenetration=False,
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    writer = SummaryWriter()
-    for i in range(1, num_runs):
+    for i in range(idx, idx + num_runs):
         body_model, ocam = opt_step(
                 landmarks,
                 pose_image_landmarks,
@@ -150,35 +157,33 @@ def run(
                 body_model,
                 opt,
                 ocam,
-                body=body,
+                vposer,
+                model_loss,
                 face=face,
                 hands=hands,
-                body_params=body_params,
                 lr=lr,
-                regu=regularization,
                 writer=writer,
-                vposer=vposer,
                 idx=i,
                 device=device,
                 print_every=print_every,
+                interpenetration=interpenetration,
                 )
+        idx = i
 
-        writer.close()
-    return body_model, ocam
+    return body_model, ocam, idx
 
 
 def opt_loop(
         data,
         body_model,
+        vposer,
         num_runs,
-        body=False,
         face=False,
         hands=False,
         lr=1e-3,
-        regularization=1e-2,
-        vposer=None,
         cam_type="perspective",
-        print_every=200
+        print_every=200,
+        interpenetration=False,
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     image = data[0]
@@ -191,73 +196,100 @@ def opt_loop(
         ocam = cam.PerspectiveCamera().to(device=device)
     else:
         ocam = cam.OrthographicCamera().to(device=device)
+    model_loss = rtsmplx.loss.ModelLoss()
     itern = 0
     for param in body_model.parameters():
-        if itern == 2:
+        if itern in [2, 10]:
             param.requires_grad = True
         else:
             param.requires_grad = False
         itern += 1
-    # opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
+    writer = SummaryWriter()
+
+    idx = 0
     print("Start Optimizing Camera")
-    opt = optimizer(ocam.parameters(), lr=lr)
-    body_model, ocam = run(
-            int(num_runs / 3),
+    opt = optimizer(list(ocam.parameters()) + list(model_loss.parameters()), lr=lr)
+    body_model, ocam, idx = run(
+            int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
             body_model,
             opt,
             ocam,
-            body=body,
+            vposer,
+            model_loss,
             face=face,
             hands=hands,
-            body_params=None,
             lr=lr,
-            regularization=regularization,
-            vposer=vposer,
             print_every=print_every,
+            writer=writer,
+            idx=idx,
+            interpenetration=interpenetration,
             )
-    opt = optimizer(body_model.parameters(), lr=lr)
+    print(idx)
+    opt = optimizer(list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
     print("Start Optimizing Body Pose")
-    body_model, ocam = run(
-            int(num_runs / 3),
+    body_model, ocam, idx = run(
+            int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
             body_model,
             opt,
             ocam,
-            body=body,
+            vposer,
+            model_loss,
             face=face,
             hands=hands,
-            body_params=None,
             lr=lr,
-            regularization=regularization,
-            vposer=vposer,
             print_every=print_every,
+            writer=writer,
+            idx=idx,
+            interpenetration=interpenetration,
             )
-    opt = optimizer(list(body_model.parameters()) + list(ocam.parameters()), lr=lr)
-    print("Start Optimizing Camera and Pose together")
-    body_model, ocam = run(
-            int(num_runs / 3),
+    print("Start Optimizing Camera")
+    opt = optimizer(list(ocam.parameters()) + list(model_loss.parameters()), lr=lr)
+    body_model, ocam, idx = run(
+            int(num_runs / 4),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
             body_model,
             opt,
             ocam,
-            body=body,
+            vposer,
+            model_loss,
             face=face,
             hands=hands,
-            body_params=None,
             lr=lr,
-            regularization=regularization,
-            vposer=vposer,
             print_every=print_every,
+            writer=writer,
+            idx=idx,
+            interpenetration=interpenetration,
+            )
+    opt = optimizer(list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
+    print("Start Optimizing Body Pose")
+    body_model, ocam, idx = run(
+            int(num_runs / 4),
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            vposer,
+            model_loss,
+            face=face,
+            hands=hands,
+            lr=lr,
+            print_every=print_every,
+            writer=writer,
+            idx=idx,
+            interpenetration=interpenetration,
             )
 
-
+    writer.close()
     body_pose_params = body_model.body_pose
     return body_model, body_pose_params, ocam
 
@@ -269,45 +301,6 @@ def get_mesh(body_model, body_pose):
             )
     tri_mesh = trimesh.base.Trimesh(vertices=vertices, faces=faces)
     return tri_mesh
-
-
-def pose_loss(joint_coords_2d, landmarks_2d):
-    loss_func = mse_loss()
-    return loss_func(joint_coords_2d, landmarks_2d)
-
-
-def face_loss(bary_coords_2d, landmarks_2d):
-    loss_func = mse_loss()
-    return loss_func(bary_coords_2d, landmarks_2d)
-
-
-def vposer_loss(joints_3d, vposer_joints_3d):
-    loss_func = mse_loss()
-    return loss_func(joints_3d, vposer_joints_3d)
-
-
-def loss(
-        pose_loss,
-        face_loss,
-        hands_loss,
-        body_pose,
-        body_pose_prior=None,
-        vposer_prior=None,
-        regu=1e-3,
-        ):
-    loss_val = pose_loss + face_loss + hands_loss
-
-    # priors
-    if body_pose_prior:
-        loss_val = loss_val + regu * body_pose_prior
-    if vposer_prior:
-        loss_val = loss_val + regu * vposer_prior
-
-    return loss_val
-
-
-def mse_loss():
-    return nn.MSELoss()
 
 
 def optimizer(params, lr=1e-3):

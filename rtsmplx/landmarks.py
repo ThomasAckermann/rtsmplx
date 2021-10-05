@@ -30,10 +30,12 @@ class Landmarks:
             self.face_lm = self.face_landmarks()
         else:
             self.face_lm = None
+
         if self.use_hands_lms == True:
-            self.hand_lm = self.hand_landmarks()
+            self.hand_lm, self.hand_classification = self.hand_landmarks()
         else:
             self.hand_lm = None
+            self.hand_classification = None
 
     def face_landmarks(self):
         image_face = self.image.reshape(
@@ -49,9 +51,9 @@ class Landmarks:
 
     def hand_landmarks(self):
         image_hands = self.image.detach().cpu().numpy()
-        drawingModule = mp.solutions.drawing_utils
         handsModule = mp.solutions.hands
         with handsModule.Hands(static_image_mode=True) as hands:
+<<<<<<< HEAD
             results = hands.process(cv2.cvtColor(image_hands, cv2.COLOR_BGR2RGB))
             if results.multi_hand_landmarks != None:
                 for handLandmarks in results.multi_hand_landmarks:
@@ -59,6 +61,24 @@ class Landmarks:
                             image_hands, handLandmarks, handsModule.HAND_CONNECTIONS
                             )
         return results.to(device=self.device)
+=======
+            results = hands.process(image_hands)
+        if results == None:
+            self.num_hands = 0
+            hand_landmarks = None
+            hand_classification = None
+        else:
+            self.num_hands = len(results.multi_hand_landmarks)
+            hand_landmarks = torch.zeros([self.num_hands, 21, 2]).to(device=self.device)
+            for hand_idx in range(self.num_hands):
+                hand_landmarks[hand_idx, :, :] = torch.Tensor([[lm.x, lm.y] for lm in results.multi_hand_landmarks[hand_idx].landmark])
+            handedness = results.multi_handedness
+            hand_classification = []
+            for classi in handedness:
+                hand_classification.append({"index": classi.classification[0].index, "label":classi.classification[0].label})
+
+        return hand_landmarks, hand_classification
+>>>>>>> fa558b02e88ff2df4084a71cf36e8ed5825cd7ac
 
     def body_landmarks(self):
         mp_pose = mp.solutions.pose
