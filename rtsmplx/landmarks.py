@@ -37,11 +37,11 @@ class Landmarks:
 
     def face_landmarks(self):
         image_face = self.image.reshape(
-            self.image_height, self.image_width, self.image_channels
-        ).to(device=self.device)
+                self.image_height, self.image_width, self.image_channels
+                ).to(device=self.device)
         fa = face_alignment.FaceAlignment(
-            face_alignment.LandmarksType._2D, flip_input=False
-        )
+                face_alignment.LandmarksType._2D, flip_input=False
+                )
         prediction = torch.tensor(fa.get_landmarks(image_face)[0])[:, :2].to(device=self.device)
         prediction[:, 0] = prediction[:, 0] / self.image_height
         prediction[:, 1] = prediction[:, 1] / self.image_width
@@ -56,17 +56,17 @@ class Landmarks:
             if results.multi_hand_landmarks != None:
                 for handLandmarks in results.multi_hand_landmarks:
                     drawingModule.draw_landmarks(
-                        image_hands, handLandmarks, handsModule.HAND_CONNECTIONS
-                    )
-        return resultsto(device=self.device)
+                            image_hands, handLandmarks, handsModule.HAND_CONNECTIONS
+                            )
+        return results.to(device=self.device)
 
     def body_landmarks(self):
         mp_pose = mp.solutions.pose
         image_body = self.image.cpu().detach().numpy()
         image_body = cv2.cvtColor(image_body, cv2.COLOR_BGR2RGB)
         with mp_pose.Pose(
-            static_image_mode=True, model_complexity=2, min_detection_confidence=0.5
-        ) as pose:
+                static_image_mode=True, model_complexity=2, min_detection_confidence=0.5
+                ) as pose:
             results = pose.process(image_body)
         results = torch.Tensor([[lm.x, lm.y] for lm in results.pose_landmarks.landmark]).to(device=self.device)
         body_lms = torch.zeros(40, 2).to(device=self.device)
@@ -84,20 +84,20 @@ class Landmarks:
 
     def plot_landmarks(self):
         plt.scatter(
-            self.body_lm[:, 0] * self.image_height,
-            self.body_lm[:, 1] * self.image_width,
-        )
+                self.body_lm[:, 0] * self.image_height,
+                self.body_lm[:, 1] * self.image_width,
+                )
 
         if self.use_head_lms == True:
             plt.scatter(
-                self.face_lm[:, 0] * self.image_height,
-                self.face_lm[:, 1] * self.image_width,
-            )
+                    self.face_lm[:, 0] * self.image_height,
+                    self.face_lm[:, 1] * self.image_width,
+                    )
         if self.use_head_lms == True:
             plt.scatter(
-                self.hand_lm[:, 0] * self.image_height,
-                self.hand_lm[:, 1] * self.image_width,
-            )
+                    self.hand_lm[:, 0] * self.image_height,
+                    self.hand_lm[:, 1] * self.image_width,
+                    )
         plt.imshow(self.image)
         plt.show()
 
