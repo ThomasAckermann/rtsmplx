@@ -7,9 +7,10 @@ class ModelLoss(nn.Module):
         super(ModelLoss, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         pose_prior_weight = 2e-3 * torch.ones(1)
-        self.register_buffer("pose_prior_weight", pose_prior_weight)
+        self.register_buffer("pose_prior_weight", pose_prior_weight.to(device=self.device))
         elbow_knee_weight = 1e-3 * torch.ones(1)
-        self.register_buffer("elbow_knee_weight", elbow_knee_weight)
+        self.register_buffer("elbow_knee_weight", elbow_knee_weight.to(device=self.device))
+
 
     """
     def interpenetration_loss(self, search_tree, pen_distance, filter_faces):

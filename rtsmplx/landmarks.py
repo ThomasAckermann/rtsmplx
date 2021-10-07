@@ -53,15 +53,6 @@ class Landmarks:
         image_hands = self.image.detach().cpu().numpy()
         handsModule = mp.solutions.hands
         with handsModule.Hands(static_image_mode=True) as hands:
-<<<<<<< HEAD
-            results = hands.process(cv2.cvtColor(image_hands, cv2.COLOR_BGR2RGB))
-            if results.multi_hand_landmarks != None:
-                for handLandmarks in results.multi_hand_landmarks:
-                    drawingModule.draw_landmarks(
-                            image_hands, handLandmarks, handsModule.HAND_CONNECTIONS
-                            )
-        return results.to(device=self.device)
-=======
             results = hands.process(image_hands)
         if results == None:
             self.num_hands = 0
@@ -78,7 +69,6 @@ class Landmarks:
                 hand_classification.append({"index": classi.classification[0].index, "label":classi.classification[0].label})
 
         return hand_landmarks, hand_classification
->>>>>>> fa558b02e88ff2df4084a71cf36e8ed5825cd7ac
 
     def body_landmarks(self):
         mp_pose = mp.solutions.pose
