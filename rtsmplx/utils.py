@@ -45,7 +45,7 @@ def angle_between(vec1, vec2, device="cpu"):
     return rotation_angle
 
 
-def transform_mat(rot, transl, scale=1, device="cpu"):
+def transform_mat(rot, transl, scale=torch.Tensor([1., 1., 1.]), device="cpu"):
     # translation matrix
     eye_3 = torch.eye(3).to(device=device)
     bottom = torch.Tensor([[0.0, 0.0, 0.0, 1.0]]).to(device=device)
@@ -54,7 +54,8 @@ def transform_mat(rot, transl, scale=1, device="cpu"):
     translation_mat = torch.cat((transl_mat_3, bottom), dim=0).to(device=device)
 
     # scale matrix
-    scale_mat_3 = scale * torch.eye(3).to(device=device)
+    scale_mat_3 = torch.diag(scale).to(device=device)
+    # scale_mat_3 = scale * torch.eye(3).to(device=device)
     scale_mat = torch.eye(4).to(device=device)
     scale_mat[:3, :3] = scale_mat_3
 

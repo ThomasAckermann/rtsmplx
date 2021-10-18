@@ -13,7 +13,7 @@ class OrthographicCamera(nn.Module):
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
         # register scale, rotation and translation parameters
-        scale = torch.ones(1, device=self.device)
+        scale = torch.ones(3, device=self.device)
         rotation = torch.zeros(3, device=self.device)
         translation = torch.zeros((3,1), device=self.device)
 

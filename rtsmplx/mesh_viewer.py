@@ -66,18 +66,19 @@ def render_trimesh_no_transform(trimesh, xmag=1.0, ymag=1.0, imgh=400, imgw=400)
     return color, depth
 
 
-def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=0.0, azimuth=180.0, image_size=512):
+def render_trimesh_perspective_torch(trimesh, ocam, image_size=512):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
     fx = ocam.focal_length_x
     fy = ocam.focal_length_y
     center = ocam.center
-    calibration_mat = torch.tensor([[[fx,0,center[0],0],
-        [0,fy,center[1],0],
-        [0,0,0,1],
-        [0,0,1,0]]]).to(device=device)
-    R, T = look_at_view_transform(distance, elevation, azimuth)
+    calibration_mat = torch.tensor([[
+        [fx, 0, center[0], 0],
+        [0, fy, center[1], 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0]
+        ]]).to(device=device)
 
     render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(R=R, T=T, K=calibration_mat, device=device)
     raster_settings = RasterizationSettings(
@@ -103,12 +104,16 @@ def render_trimesh_perspective_torch(trimesh, ocam, distance=3, elevation=0.0, a
     return image
 
 
-def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512):
+def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512, zfar=100, znear=1.0, max_y=1.0, min_y=-1.0, max_x=1.0, min_x=-1.0,):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    T.requires_grad = False
+    R.requires_grad = False
+    scale = ocam.scale.reshape((1,3)).detach()
+    print(R)
 
-    render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(R=R, T=T, device=device)
+    render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(R=R, T=T, device=device, zfar=zfar, znear=znear, scale_xyz=scale, max_y=max_y, min_y=min_y, max_x=max_x, min_x=min_x)
     raster_settings = RasterizationSettings(
             image_size=image_size,
             blur_radius=0.0,

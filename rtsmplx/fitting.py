@@ -34,6 +34,7 @@ def opt_step(
         ocam,
         vposer,
         model_loss,
+        previous_model=None,
         lr=1e-3,
         face=False,
         hands=False,
@@ -79,7 +80,7 @@ def opt_step(
             hands_loss_pred = 0
         body_pose_param = body_pose #body_model.body_pose
 
-        # Create the search tree    
+        # Create the search tree
         """
         pen_loss = None
         search_tree = None
@@ -92,13 +93,13 @@ def opt_step(
 
             assert use_cuda, 'Interpenetration term can only be used with CUDA'
             assert torch.cuda.is_available(), \
-                'No CUDA Device! Interpenetration term can only be used' + \
-                ' with CUDA'
+                    'No CUDA Device! Interpenetration term can only be used' + \
+                    ' with CUDA'
 
             search_tree = BVH(max_collisions=max_collisions)
 
             pen_distance = \
-                collisions_loss.DistanceFieldPenetrationLoss(
+                    collisions_loss.DistanceFieldPenetrationLoss(
                     sigma=df_cone_height, point2plane=point2plane,
                     vectorized=True, penalize_outside=penalize_outside)
 
@@ -117,7 +118,7 @@ def opt_step(
         """
 
         opt.zero_grad()
-        loss = model_loss.forward(body_pose_param, pose_prediction, pose_image_landmarks)
+        loss = model_loss.forward(body_pose_param, pose_prediction, pose_image_landmarks, previous_model=previous_model)
         if writer != None:
             writer.add_scalar("Loss with Regularization", loss.detach(), idx)
         loss.backward()
@@ -140,6 +141,7 @@ def run(
         ocam,
         vposer,
         model_loss,
+        previous_model=None,
         face=False,
         hands=False,
         lr=1e-3,
@@ -159,6 +161,7 @@ def run(
                 ocam,
                 vposer,
                 model_loss,
+                previous_model=previous_model,
                 face=face,
                 hands=hands,
                 lr=lr,
@@ -280,6 +283,70 @@ def opt_loop(
             ocam,
             vposer,
             model_loss,
+            face=face,
+            hands=hands,
+            lr=lr,
+            print_every=print_every,
+            writer=writer,
+            idx=idx,
+            interpenetration=interpenetration,
+            )
+
+    writer.close()
+    body_pose_params = body_model.body_pose
+    return body_model, body_pose_params, ocam
+
+
+
+def video_opt_loop(
+        data,
+        body_model,
+        vposer,
+        num_runs,
+        previous_model=None,
+        face=False,
+        hands=False,
+        lr=1e-3,
+        cam_type="perspective",
+        print_every=200,
+        interpenetration=False,
+        ):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    image = data[0]
+    landmarks = data[1]
+    pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
+    pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]].to(device=device)
+    # face_image_landmarks = landmarks.face_landmarks()[17:, :]
+    face_image_landmarks = None
+    if cam_type == "perspective":
+        ocam = cam.PerspectiveCamera().to(device=device)
+    else:
+        ocam = cam.OrthographicCamera().to(device=device)
+    model_loss = rtsmplx.loss.ModelLoss()
+    itern = 0
+    for param in body_model.parameters():
+        if itern in [2, 10]:
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+        itern += 1
+    writer = SummaryWriter()
+
+    idx = 0
+
+    opt = optimizer(list(ocam.parameters()) + list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
+    print("Start Optimizing Body Pose")
+    body_model, ocam, idx = run(
+            num_runs,
+            landmarks,
+            pose_image_landmarks,
+            face_image_landmarks,
+            body_model,
+            opt,
+            ocam,
+            vposer,
+            model_loss,
+            previous_model=previous_model,
             face=face,
             hands=hands,
             lr=lr,

@@ -32,3 +32,4 @@ class ImageDataset(Dataset):
         image = torch.from_numpy(image).to(device=self.device)
         landmarks = lm.Landmarks(image, head=self.head, hands=self.hands)
         return (image, landmarks)
+
