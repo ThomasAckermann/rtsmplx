@@ -31,5 +31,7 @@ class ImageDataset(Dataset):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = torch.from_numpy(image).to(device=self.device)
         landmarks = lm.Landmarks(image, head=self.head, hands=self.hands)
-        return (image, landmarks)
+        height, width, channels = image.shape
+        image_size = [height, width]
+        return (image, landmarks, image_size)
 

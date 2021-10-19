@@ -34,6 +34,7 @@ def opt_step(
         ocam,
         vposer,
         model_loss,
+        image_size=[512, 512],
         previous_model=None,
         lr=1e-3,
         face=False,
@@ -57,7 +58,7 @@ def opt_step(
         joints = body_model.get_joints(body_pose=body_pose)
         joints = joints[pose_mapping[:, 0]]
         joints_3d = joints
-        pose_prediction = ocam.forward(joints).to(device=device)
+        pose_prediction = ocam.forward(joints, image_size=image_size).to(device=device)
 
         if face == True:
             bary_coords = body_model.bary_coords
@@ -141,6 +142,7 @@ def run(
         ocam,
         vposer,
         model_loss,
+        image_size=[512, 512],
         previous_model=None,
         face=False,
         hands=False,
@@ -161,6 +163,7 @@ def run(
                 ocam,
                 vposer,
                 model_loss,
+                image_size=image_size,
                 previous_model=previous_model,
                 face=face,
                 hands=hands,
@@ -191,6 +194,7 @@ def opt_loop(
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     image = data[0]
     landmarks = data[1]
+    image_size = data[2]
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]].to(device=device)
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
@@ -222,6 +226,7 @@ def opt_loop(
             ocam,
             vposer,
             model_loss,
+            image_size=image_size,
             face=face,
             hands=hands,
             lr=lr,
@@ -243,6 +248,7 @@ def opt_loop(
             ocam,
             vposer,
             model_loss,
+            image_size=image_size,
             face=face,
             hands=hands,
             lr=lr,
@@ -263,6 +269,7 @@ def opt_loop(
             ocam,
             vposer,
             model_loss,
+            image_size=image_size,
             face=face,
             hands=hands,
             lr=lr,
@@ -283,6 +290,7 @@ def opt_loop(
             ocam,
             vposer,
             model_loss,
+            image_size=image_size,
             face=face,
             hands=hands,
             lr=lr,
@@ -314,6 +322,7 @@ def video_opt_loop(
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     image = data[0]
     landmarks = data[1]
+    image_size = data[2]
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]].to(device=device)
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
@@ -321,7 +330,8 @@ def video_opt_loop(
     if cam_type == "perspective":
         ocam = cam.PerspectiveCamera().to(device=device)
     else:
-        ocam = cam.OrthographicCamera().to(device=device)
+        # ocam = cam.OrthographicCamera().to(device=device)
+        ocam = cam.OrthographicCameraTorch().to(device=device)
     model_loss = rtsmplx.loss.ModelLoss()
     itern = 0
     for param in body_model.parameters():
@@ -333,6 +343,7 @@ def video_opt_loop(
     writer = SummaryWriter()
 
     idx = 0
+
 
     opt = optimizer(list(ocam.parameters()) + list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
     print("Start Optimizing Body Pose")
@@ -346,6 +357,7 @@ def video_opt_loop(
             ocam,
             vposer,
             model_loss,
+            image_size=image_size,
             previous_model=previous_model,
             face=face,
             hands=hands,
@@ -355,7 +367,6 @@ def video_opt_loop(
             idx=idx,
             interpenetration=interpenetration,
             )
-
     writer.close()
     body_pose_params = body_model.body_pose
     return body_model, body_pose_params, ocam
@@ -379,7 +390,7 @@ def transform_bary_coords(bary_coords, bary_vertices):
     return transf_bary_coords
 
 
-def plot_landmarks(ocam, body_model, image_landmarks):
+def plot_landmarks(ocam, body_model, image_landmarks, image_size=[512,512]):
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = image_landmarks.body_landmarks()
     """
@@ -392,7 +403,7 @@ def plot_landmarks(ocam, body_model, image_landmarks):
 
     joints = body_model.get_joints(body_pose=body_model.body_pose)
     joints = joints[pose_mapping[:, 0]]
-    pose_prediction = ocam.forward(joints)
+    pose_prediction = ocam.forward(joints, image_size=image_size)
     return (pose_image_landmarks.detach().cpu().numpy(), pose_prediction.detach().cpu().numpy())
 
 

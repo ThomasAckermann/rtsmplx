@@ -10,7 +10,7 @@ class ModelLoss(nn.Module):
         self.register_buffer("pose_prior_weight", pose_prior_weight.to(device=self.device))
         elbow_knee_weight = 1e-3 * torch.ones(1)
         self.register_buffer("elbow_knee_weight", elbow_knee_weight.to(device=self.device))
-        previous_image_weight = 1e-3 * torch.ones(1)
+        previous_image_weight = 5e-4 * torch.ones(1)
         self.register_buffer("previous_image_weight", previous_image_weight.to(device=self.device))
 
 

@@ -87,11 +87,13 @@ def transform_mat_persp(rot, transl):
     return transform
 
 
-def get_torch_trans_format(translation, rot_angles):
+def get_torch_trans_format(translation, rot_angles, scale=None):
     rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(rot_angles)
     rotation_mat = rotation_mat.reshape([1, 3, 3])
-    translation = translation.reshape([1, 3])
-    return (translation, rotation_mat)
+    if scale != None:
+        return (translation, rotation_mat, scale)
+    else:
+        return (translation, rotation_mat)
 
 
 def trimesh_to_torch(trimesh, textures=None):

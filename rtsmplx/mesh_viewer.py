@@ -20,6 +20,7 @@ from pytorch3d.renderer import (
         MeshRenderer,
         MeshRasterizer,
         SoftPhongShader,
+        SoftSilhouetteShader,
         TexturesUV,
         TexturesVertex
         )
@@ -111,9 +112,21 @@ def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512, zfar=100, z
     T.requires_grad = False
     R.requires_grad = False
     scale = ocam.scale.reshape((1,3)).detach()
-    print(R)
+    frustum_max = ocam.frustum_max.detach()# .cpu().numpy()
+    frustum_min = ocam.frustum_min.detach()# .cpu().numpy()
 
-    render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(R=R, T=T, device=device, zfar=zfar, znear=znear, scale_xyz=scale, max_y=max_y, min_y=min_y, max_x=max_x, min_x=min_x)
+
+    render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
+            R=R,
+            T=T,
+            device=device,
+            zfar=zfar, #self.frustum_max[0],
+            znear=znear, #self.frustum_min[0],
+            max_y=frustum_max[1],
+            min_y=frustum_min[1],
+            max_x=frustum_max[2],
+            min_x=frustum_min[2],
+            )
     raster_settings = RasterizationSettings(
             image_size=image_size,
             blur_radius=0.0,
@@ -131,6 +144,46 @@ def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512, zfar=100, z
                 cameras=render_camera,
                 lights=lights
                 )
+            )
+
+    image = renderer(mesh)
+    return image
+
+
+def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znear=1.0, max_y=1.0, min_y=-1.0, max_x=1.0, min_x=-1.0,):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    mesh = utils.trimesh_to_torch(trimesh).to(device=device)
+    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    scale = ocam.scale.detach()
+    sigma = 1e-4
+    frustum_max = ocam.frustum_max.detach()# .cpu().numpy()
+    frustum_min = ocam.frustum_min.detach()# .cpu().numpy()
+
+
+    render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
+            R=R,
+            T=T,
+            device=device,
+            zfar=zfar, #self.frustum_max[0],
+            znear=znear, #self.frustum_min[0],
+            max_y=frustum_max[1],
+            min_y=frustum_min[1],
+            max_x=frustum_max[2],
+            min_x=frustum_min[2],
+            )
+
+    raster_settings = RasterizationSettings(
+            image_size=image_size,
+            blur_radius=np.log(1. / 1e-4 -1. )*sigma,
+            faces_per_pixel=1,
+            )
+
+    renderer = MeshRenderer(
+            rasterizer=MeshRasterizer(
+                cameras=render_camera,
+                raster_settings=raster_settings
+                ),
+            shader=SoftSilhouetteShader()
             )
 
     image = renderer(mesh)
