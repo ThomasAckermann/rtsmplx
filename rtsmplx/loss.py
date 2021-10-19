@@ -6,25 +6,29 @@ class ModelLoss(nn.Module):
     def __init__(self):# , search_tree, pen_distance, filter_faces):
         super(ModelLoss, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        pose_prior_weight = 2e-1 * torch.ones(1)
+        pose_weight = 1 * torch.ones(1)
+        self.register_buffer("pose_weight", pose_weight.to(device=self.device))
+        pose_prior_weight = 5e-3 * torch.ones(1)
         self.register_buffer("pose_prior_weight", pose_prior_weight.to(device=self.device))
-        elbow_knee_weight = 1e-1 * torch.ones(1)
+        elbow_knee_weight = 5e-3 * torch.ones(1)
         self.register_buffer("elbow_knee_weight", elbow_knee_weight.to(device=self.device))
-        previous_image_weight = 5e-3 * torch.ones(1)
+        previous_image_weight = 1e-2 * torch.ones(1)
         self.register_buffer("previous_image_weight", previous_image_weight.to(device=self.device))
-        silhouette_weight = 0 * torch.ones(1)
+        silhouette_weight = 1e-2 * torch.ones(1)
         self.register_buffer("silhouette_weight", silhouette_weight.to(device=self.device))
 
 
     def previous_image_prior(self, body_pose, previous_model):
-        previous_pose = previous_model.body_pose
+        previous_pose = previous_model.body_pose.detach()
         l2loss = nn.MSELoss()
         return l2loss(body_pose, previous_pose)
 
     def silhouette_loss(self, silhouette_image, silhouette_prediction):
+        silhouette_image = silhouette_image / 255
+        silhouette_prediction = silhouette_prediction / 255
         img_shape = silhouette_image.shape
         silhouette_prediction = silhouette_prediction[:,:,:,:3].reshape(img_shape)
-        lossf = nn.MSELoss(reduction="sum")
+        lossf = nn.MSELoss(reduction="mean")
         sil_loss = lossf(silhouette_image, silhouette_prediction)
         return sil_loss
 
@@ -73,7 +77,7 @@ class ModelLoss(nn.Module):
         body_pose_prior = self.body_pose_prior(body_pose)
         elbow_knee_prior = self.elbow_knee_prior_loss(body_pose)
 
-        loss_val = pose_loss + face_loss + hands_loss
+        loss_val = self.pose_weight * pose_loss + face_loss + hands_loss
         if body_pose_prior:
             loss_val = loss_val + self.pose_prior_weight * body_pose_prior
         if elbow_knee_prior:
@@ -84,6 +88,8 @@ class ModelLoss(nn.Module):
         if (silhouette_image != None) and (silhouette_prediction != None):
             silhouette_loss = self.silhouette_loss(silhouette_image, silhouette_prediction)
             loss_val = loss_val + self.silhouette_weight * silhouette_loss
+        if previous_model:
+            print("previous_image_loss", previous_image_prior)
 
         # if pen_loss:
         # pen_loss = self.interpenetration_loss(self.search_tree, self.pen_distance, self.filter_faces)

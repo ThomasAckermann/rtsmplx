@@ -123,6 +123,9 @@ class OrthographicCameraTorch(nn.Module):
         frustum_max = torch.ones(3, device=self.device)
         frustum_min = torch.ones(3, device=self.device) * -1
 
+        frustum_max[0] = 100.
+        frustum_max[0] = 1.
+
         scale = nn.Parameter(scale, requires_grad=True)
         rotation = nn.Parameter(rotation, requires_grad=True)
         translation = nn.Parameter(translation, requires_grad=True)
