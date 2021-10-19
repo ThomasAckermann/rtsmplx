@@ -6,18 +6,28 @@ class ModelLoss(nn.Module):
     def __init__(self):# , search_tree, pen_distance, filter_faces):
         super(ModelLoss, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        pose_prior_weight = 2e-3 * torch.ones(1)
+        pose_prior_weight = 2e-1 * torch.ones(1)
         self.register_buffer("pose_prior_weight", pose_prior_weight.to(device=self.device))
-        elbow_knee_weight = 1e-3 * torch.ones(1)
+        elbow_knee_weight = 1e-1 * torch.ones(1)
         self.register_buffer("elbow_knee_weight", elbow_knee_weight.to(device=self.device))
-        previous_image_weight = 5e-4 * torch.ones(1)
+        previous_image_weight = 5e-3 * torch.ones(1)
         self.register_buffer("previous_image_weight", previous_image_weight.to(device=self.device))
+        silhouette_weight = 0 * torch.ones(1)
+        self.register_buffer("silhouette_weight", silhouette_weight.to(device=self.device))
 
 
     def previous_image_prior(self, body_pose, previous_model):
         previous_pose = previous_model.body_pose
         l2loss = nn.MSELoss()
         return l2loss(body_pose, previous_pose)
+
+    def silhouette_loss(self, silhouette_image, silhouette_prediction):
+        img_shape = silhouette_image.shape
+        silhouette_prediction = silhouette_prediction[:,:,:,:3].reshape(img_shape)
+        lossf = nn.MSELoss(reduction="sum")
+        sil_loss = lossf(silhouette_image, silhouette_prediction)
+        return sil_loss
+
 
     """
     def interpenetration_loss(self, search_tree, pen_distance, filter_faces):
@@ -56,7 +66,7 @@ class ModelLoss(nn.Module):
     def body_pose_prior(self, body_pose):
         return torch.linalg.norm(body_pose).to(device=self.device)
 
-    def forward(self, body_pose, joints_2d, landmarks_2d, previous_model=None):
+    def forward(self, body_pose, joints_2d, landmarks_2d, previous_model=None, silhouette_image=None, silhouette_prediction=None):
         pose_loss = self.pose_loss(joints_2d, landmarks_2d)
         face_loss = 0.0
         hands_loss = 0.0
@@ -71,6 +81,9 @@ class ModelLoss(nn.Module):
         if previous_model:
             previous_image_prior = self.previous_image_prior(body_pose, previous_model)
             loss_val = loss_val + self.previous_image_weight * previous_image_prior
+        if (silhouette_image != None) and (silhouette_prediction != None):
+            silhouette_loss = self.silhouette_loss(silhouette_image, silhouette_prediction)
+            loss_val = loss_val + self.silhouette_weight * silhouette_loss
 
         # if pen_loss:
         # pen_loss = self.interpenetration_loss(self.search_tree, self.pen_distance, self.filter_faces)

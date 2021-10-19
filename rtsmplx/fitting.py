@@ -34,6 +34,7 @@ def opt_step(
         ocam,
         vposer,
         model_loss,
+        silhouette=None,
         image_size=[512, 512],
         previous_model=None,
         lr=1e-3,
@@ -41,10 +42,10 @@ def opt_step(
         hands=False,
         writer=None,
         idx=0,
-        device="cpu",
         print_every=200,
         interpenetration=False,
         ):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     """
     pose_image_landmarks = torch.cat(
@@ -117,9 +118,21 @@ def opt_step(
                     faces_segm=faces_segm, faces_parents=faces_parents,
                     ign_part_pairs=ign_part_pairs).to(device=device)
         """
+        silhouette_prediction = None
+        silhouette_image = silhouette
+        if silhouette != None:
+            mesh = rtsmplx.fitting.get_mesh(body_model, body_pose)
+            silhouette_prediction = rtsmplx.mesh_viewer.render_silhouette_orthographic(mesh, ocam, image_size=image_size)
 
         opt.zero_grad()
-        loss = model_loss.forward(body_pose_param, pose_prediction, pose_image_landmarks, previous_model=previous_model)
+        loss = model_loss.forward(
+                body_pose_param,
+                pose_prediction,
+                pose_image_landmarks,
+                previous_model=previous_model,
+                silhouette_prediction=silhouette_prediction,
+                silhouette_image=silhouette_image,
+                )
         if writer != None:
             writer.add_scalar("Loss with Regularization", loss.detach(), idx)
         loss.backward()
@@ -142,6 +155,7 @@ def run(
         ocam,
         vposer,
         model_loss,
+        silhouette=None,
         image_size=[512, 512],
         previous_model=None,
         face=False,
@@ -163,6 +177,7 @@ def run(
                 ocam,
                 vposer,
                 model_loss,
+                silhouette=silhouette,
                 image_size=image_size,
                 previous_model=previous_model,
                 face=face,
@@ -170,7 +185,6 @@ def run(
                 lr=lr,
                 writer=writer,
                 idx=i,
-                device=device,
                 print_every=print_every,
                 interpenetration=interpenetration,
                 )
@@ -323,6 +337,7 @@ def video_opt_loop(
     image = data[0]
     landmarks = data[1]
     image_size = data[2]
+    silhouette = data[3]
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]].to(device=device)
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
@@ -357,6 +372,7 @@ def video_opt_loop(
             ocam,
             vposer,
             model_loss,
+            silhouette=silhouette,
             image_size=image_size,
             previous_model=previous_model,
             face=face,

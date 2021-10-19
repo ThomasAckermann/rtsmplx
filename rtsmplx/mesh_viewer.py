@@ -112,16 +112,16 @@ def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512, zfar=100, z
     T.requires_grad = False
     R.requires_grad = False
     scale = ocam.scale.reshape((1,3)).detach()
-    frustum_max = ocam.frustum_max.detach()# .cpu().numpy()
-    frustum_min = ocam.frustum_min.detach()# .cpu().numpy()
+    frustum_max = ocam.frustum_max.detach()
+    frustum_min = ocam.frustum_min.detach()
 
 
     render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
             R=R,
             T=T,
             device=device,
-            zfar=zfar, #self.frustum_max[0],
-            znear=znear, #self.frustum_min[0],
+            zfar=frustum_max[0],
+            znear=frustum_min[0],
             max_y=frustum_max[1],
             min_y=frustum_min[1],
             max_x=frustum_max[2],
@@ -156,16 +156,16 @@ def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znea
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
     scale = ocam.scale.detach()
     sigma = 1e-4
-    frustum_max = ocam.frustum_max.detach()# .cpu().numpy()
-    frustum_min = ocam.frustum_min.detach()# .cpu().numpy()
+    frustum_max = ocam.frustum_max.detach()
+    frustum_min = ocam.frustum_min.detach()
 
 
     render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
             R=R,
             T=T,
             device=device,
-            zfar=zfar, #self.frustum_max[0],
-            znear=znear, #self.frustum_min[0],
+            zfar=frustum_max[0],
+            znear=frustum_min[0],
             max_y=frustum_max[1],
             min_y=frustum_min[1],
             max_x=frustum_max[2],
