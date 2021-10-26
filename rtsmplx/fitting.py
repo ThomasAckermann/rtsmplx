@@ -123,7 +123,10 @@ def opt_step(
         silhouette_image = silhouette
         if silhouette != None:
             mesh = rtsmplx.fitting.get_mesh(body_model, body_pose)
-            silhouette_prediction = rtsmplx.mesh_viewer.render_silhouette_orthographic(mesh, ocam, image_size=image_size)
+            if ocam.camera_type == "orthographic":
+                silhouette_prediction = rtsmplx.mesh_viewer.render_silhouette_orthographic(mesh, ocam, image_size=image_size)
+            else:
+                silhouette_prediction = rtsmplx.mesh_viewer.render_silhouette_perspective(mesh, ocam, image_size=image_size)
 
         opt.zero_grad()
         loss = model_loss.forward(
@@ -349,9 +352,8 @@ def video_opt_loop(
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
     face_image_landmarks = None
     if cam_type == "perspective":
-        ocam = cam.PerspectiveCamera().to(device=device)
+        ocam = cam.PerspectiveCameraTorch().to(device=device)
     else:
-        # ocam = cam.OrthographicCamera().to(device=device)
         ocam = cam.OrthographicCameraTorch().to(device=device)
     model_loss = rtsmplx.loss.ModelLoss()
     itern = 0

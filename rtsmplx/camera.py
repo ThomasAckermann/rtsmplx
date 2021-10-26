@@ -171,9 +171,9 @@ class PerspectiveCameraTorch(nn.Module):
     FOCAL_LENGTH = 1
 
     def __init__(self):
-        super(OrthographicCameraTorch, self).__init__()
+        super(PerspectiveCameraTorch, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        self.camera_type = "orthographic"
+        self.camera_type = "perspective"
 
         # register scale, rotation and translation parameters
         scale = torch.ones((1, 3), device=self.device)
@@ -232,11 +232,9 @@ class PerspectiveCameraTorch(nn.Module):
         render_camera = pytorch3d.renderer.cameras.PerspectiveCameras(
                 R=rotation_mat,
                 T=self.translation,
-                focal_length=
-                pricipal_point=self.center
+                focal_length=self.focal_length,
+                pricipal_point=self.center,
                 device=self.device,
                 )
 
         projected_points = render_camera.transform_points_screen(points_reshape, image_size=image_size)
-        projected_points = projected_points.reshape(points_shape[0], 3)[:,:2]
-        return projected_points

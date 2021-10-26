@@ -67,12 +67,13 @@ def render_trimesh_no_transform(trimesh, xmag=1.0, ymag=1.0, imgh=400, imgw=400)
     return color, depth
 
 
-def render_trimesh_perspective_torch(trimesh, ocam, image_size=512):
+def render_trimesh_perspective_torch(trimesh, ocam, image_size=[512,512]):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
     focal_length = ocam.focal_length.deatch()
     principal_point = ocam.center.detach()
+    aspect_ratio = image_size[0] / image_size[1]
 
     render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(
             principal_point=principal_point,
@@ -194,12 +195,13 @@ def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znea
     return image
 
 
-def render_silhouette_perspective(trimesh, ocam, image_size=512):
+def render_silhouette_perspective(trimesh, ocam, image_size=[512, 512]):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
     focal_length = ocam.focal_length.detach()
     principal_point = ocam.center.detach()
+    aspect_ratio = image_size[0] / image_size[1]
     sigma = 1e-4
 
 
@@ -208,7 +210,7 @@ def render_silhouette_perspective(trimesh, ocam, image_size=512):
             principal_point=center,
             R=R,
             T=T,
-            image_size=image_size,
+            aspect_ratio=aspect_ratio,
             device=device,
             )
 
