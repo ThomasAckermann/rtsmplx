@@ -32,6 +32,55 @@ def get_lm_mapping():
             [24, 4],  # left eye
         ]
     )
+    hand_mapping = np.array(
+            [
+                # left hand
+                # 0, # wrist
+                [1, 37], # thumb_cmc
+                # 2,  # thumb_mcp
+                [3, 38], # thumb_ip
+                [4, 39], # thumb_tip
+                [5, 25], # index_finger_mcp
+                # 6 # index_finger_pip
+                [7, 27], # index_finger_dip
+                [8, 26], # index_finger_tip
+                [9, 28], # middle_finder_mcp
+                # 10 # middle_finger_pip
+                [11, 30], # middle_finger_dip
+                [12, 29], # middle_finger_tip
+                [13, 34], # ring_finger_mcp
+                # 14 # ring_finger_pip
+                [15, 36], # ring_finger_dip
+                [16, 35], # ring_finger_tip
+                [17, 31], # pinky_mcp
+                # 18 # pinky_pip
+                [19, 33], # pinky_dip
+                [20, 32], # pinky_tip
+
+                # right hand
+                # 0, # wrist
+                [1, 37+15], # thumb_cmc
+                # 2,  # thumb_mcp
+                [3, 38+15], # thumb_ip
+                [4, 39+15], # thumb_tip
+                [5, 25+15], # index_finger_mcp
+                # 6 # index_finger_pip
+                [7, 27+15], # index_finger_dip
+                [8, 26+15], # index_finger_tip
+                [9, 28+15], # middle_finder_mcp
+                # 10 # middle_finger_pip
+                [11, 30+15], # middle_finger_dip
+                [12, 29+15], # middle_finger_tip
+                [13, 34+15], # ring_finger_mcp
+                # 14 # ring_finger_pip
+                [15, 36+15], # ring_finger_dip
+                [16, 35+15], # ring_finger_tip
+                [17, 31+15], # pinky_mcp
+                # 18 # pinky_pip
+                [19, 33+15], # pinky_dip
+                [20, 32+15], # pinky_tip
+                ]
+            )
     """
 
     face_mapping = np.array(
@@ -45,3 +94,5 @@ def get_lm_mapping():
 
 if __name__ == "__main__":
     print(get_lm_mapping())
+
+

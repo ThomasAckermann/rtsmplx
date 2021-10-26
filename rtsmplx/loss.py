@@ -105,9 +105,6 @@ class ModelLoss(nn.Module):
         if (silhouette_image != None) and (silhouette_prediction != None):
             silhouette_loss = self.silhouette_loss(silhouette_image, silhouette_prediction)
             loss_val = loss_val + self.silhouette_weight * silhouette_loss
-        #if previous_model:
-        #    print("previous_image_loss", previous_image_prior)
-        #    print("previous_cam_loss", previous_cam_prior)
 
         # if pen_loss:
         # pen_loss = self.interpenetration_loss(self.search_tree, self.pen_distance, self.filter_faces)

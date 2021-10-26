@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset
 import cv2
 import rtsmplx.landmarks as lm
+import json
 
 
 class ImageDataset(Dataset):
@@ -43,4 +44,40 @@ class ImageDataset(Dataset):
             return (image, landmarks, image_size, silhouette)
         else:
             return (image, landmarks, image_size)
+
+
+class EvaluationDataset(Dataset):
+    """Evaluation dataset"""
+
+    def __init__(self, image_dir, ground_truth_dir, transform=None, head=False, hands=False):
+        super(EvaluationDataset, self).__init__()
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.image_dir = image_dir
+        self.ground_truth_dir = ground_truth_dir
+        self.transform = transform
+        self.image_paths = os.listdir(self.image_dir)
+        self.ground_truth_paths = os.listdir(self.ground_truth_dir)
+        self.head = head
+        self.hands = hands
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, index):
+        image_path = os.path.join(self.image_dir, self.image_paths[index])
+        ground_truth_path = os.path.join(
+                self.ground_truth_dir, self.image_paths[index].replace("img.jpg", "2Djnt.json")
+                )
+
+        with open(ground_truth_path) as f:
+            ground_truth = json.load(f)
+
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = torch.from_numpy(image).to(device=self.device)
+        landmarks = lm.Landmarks(image, head=self.head, hands=self.hands)
+        height, width, channels = image.shape
+        image_size = [height, width]
+        return (image, landmarks, image_size, ground_truth)
+
 

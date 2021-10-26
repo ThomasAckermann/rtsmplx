@@ -77,7 +77,7 @@ def render_trimesh_perspective_torch(trimesh, ocam, image_size=[512,512]):
 
     render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(
             principal_point=principal_point,
-            focal_length = focal_length
+            focal_length = focal_length,
             R=R,
             T=T,
             image_size=image_size,

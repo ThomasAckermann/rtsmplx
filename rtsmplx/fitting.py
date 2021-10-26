@@ -222,9 +222,9 @@ def opt_loop(
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
     face_image_landmarks = None
     if cam_type == "perspective":
-        ocam = cam.PerspectiveCamera().to(device=device)
+        ocam = cam.PerspectiveCameraTorch().to(device=device)
     else:
-        ocam = cam.OrthographicCamera().to(device=device)
+        ocam = cam.OrthographicCameraTorch().to(device=device)
     model_loss = rtsmplx.loss.ModelLoss()
     itern = 0
     for param in body_model.parameters():
@@ -257,7 +257,6 @@ def opt_loop(
             idx=idx,
             interpenetration=interpenetration,
             )
-    print(idx)
     opt = optimizer(list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
     print("Start Optimizing Body Pose")
     body_model, ocam, idx = run(
@@ -341,12 +340,14 @@ def video_opt_loop(
         cam_type="perspective",
         print_every=200,
         interpenetration=False,
+        silhouete=False,
         ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     image = data[0]
     landmarks = data[1]
     image_size = data[2]
-    silhouette = data[3]
+    if silhouette == True:
+        silhouette = data[3]
     pose_mapping = rtsmplx.lm_joint_mapping.get_lm_mapping()
     pose_image_landmarks = landmarks.body_landmarks()[pose_mapping[:, 1]].to(device=device)
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]

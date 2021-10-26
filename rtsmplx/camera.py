@@ -27,7 +27,7 @@ class OrthographicCamera(nn.Module):
         self.register_parameter("rotation", rotation)
         self.register_parameter("translation", translation)
 
-    def forward(self, points):
+    def forward(self, points, image_size=[512,512]):
         points_shape = points.shape
         points_reshape = torch.ones([points.shape[0], 4], device=self.device)
         points_reshape[:, :3] = points
@@ -83,7 +83,7 @@ class PerspectiveCamera(nn.Module):
         self.register_parameter('center', center)
 
 
-    def forward(self, points):
+    def forward(self, points, image_size=[512,512]):
         points_shape = points.shape
         points_reshape = torch.ones([points.shape[0], 4], device=self.device)
         points_reshape[:, :3] = points
