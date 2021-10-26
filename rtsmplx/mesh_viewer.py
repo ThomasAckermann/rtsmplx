@@ -71,17 +71,17 @@ def render_trimesh_perspective_torch(trimesh, ocam, image_size=512):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
-    fx = ocam.focal_length_x
-    fy = ocam.focal_length_y
-    center = ocam.center
-    calibration_mat = torch.tensor([[
-        [fx, 0, center[0], 0],
-        [0, fy, center[1], 0],
-        [0, 0, 0, 1],
-        [0, 0, 1, 0]
-        ]]).to(device=device)
+    focal_length = ocam.focal_length.deatch()
+    principal_point = ocam.center.detach()
 
-    render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(R=R, T=T, K=calibration_mat, device=device)
+    render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(
+            principal_point=principal_point,
+            focal_length = focal_length
+            R=R,
+            T=T,
+            image_size=image_size,
+            device=device
+            )
     raster_settings = RasterizationSettings(
             image_size=image_size,
             blur_radius=0.0,
@@ -146,7 +146,7 @@ def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512, zfar=100, z
                 )
             )
 
-    image = renderer(mesh)
+    image = renderer(mesh, cameras=render_camera, lights=lights)
     return image
 
 
@@ -175,8 +175,9 @@ def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znea
     raster_settings = RasterizationSettings(
             image_size=image_size,
             blur_radius=np.log(1. / 1e-4 -1. )*sigma,
-            faces_per_pixel=1,
+            faces_per_pixel=50,
             )
+    lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
 
     renderer = MeshRenderer(
             rasterizer=MeshRasterizer(
@@ -186,5 +187,48 @@ def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znea
             shader=SoftSilhouetteShader()
             )
 
-    image = renderer(mesh)
+    image = renderer(mesh, cameras=render_camera, lights=lights)
+    image_shape = image.shape
+    image[:, : , :, :3] = image[:, : , :, :3] - image[:, : , :, 3].reshape(image_shape[0], image_shape[1], image_shape[2], 1)
+    image = image[:, :, :, :3]
+    return image
+
+
+def render_silhouette_perspective(trimesh, ocam, image_size=512):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    mesh = utils.trimesh_to_torch(trimesh).to(device=device)
+    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    focal_length = ocam.focal_length.detach()
+    principal_point = ocam.center.detach()
+    sigma = 1e-4
+
+
+    render_camera = pytorch3d.renderer.cameras.PerspectiveCameras(
+            focal_length=focal_length,
+            principal_point=center,
+            R=R,
+            T=T,
+            image_size=image_size,
+            device=device,
+            )
+
+    raster_settings = RasterizationSettings(
+            image_size=image_size,
+            blur_radius=np.log(1. / 1e-4 -1. )*sigma,
+            faces_per_pixel=50,
+            )
+    lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
+
+    renderer = MeshRenderer(
+            rasterizer=MeshRasterizer(
+                cameras=render_camera,
+                raster_settings=raster_settings
+                ),
+            shader=SoftSilhouetteShader()
+            )
+
+    image = renderer(mesh, cameras=render_camera, lights=lights)
+    image_shape = image.shape
+    image[:, : , :, :3] = image[:, : , :, :3] - image[:, : , :, 3].reshape(image_shape[0], image_shape[1], image_shape[2], 1)
+    image = image[:, :, :, :3]
     return image

@@ -47,8 +47,6 @@ class PerspectiveCamera(nn.Module):
     """Perspective camera model"""
 
     FOCAL_LENGTH = 1
-    def __init__(self):
-        super(PerspectiveCamera, self).__init__()
 
     def __init__(self, focal_length_x=None, focal_length_y=None):
         super(PerspectiveCamera, self).__init__()
@@ -115,6 +113,7 @@ class OrthographicCameraTorch(nn.Module):
     def __init__(self):
         super(OrthographicCameraTorch, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.camera_type = "orthographic"
 
         # register scale, rotation and translation parameters
         scale = torch.ones((1, 3), device=self.device)
@@ -124,7 +123,7 @@ class OrthographicCameraTorch(nn.Module):
         frustum_min = torch.ones(3, device=self.device) * -1
 
         frustum_max[0] = 100.
-        frustum_max[0] = 1.
+        frustum_min[0] = 1.
 
         scale = nn.Parameter(scale, requires_grad=True)
         rotation = nn.Parameter(rotation, requires_grad=True)
@@ -135,8 +134,8 @@ class OrthographicCameraTorch(nn.Module):
         self.register_parameter("scale", scale)
         self.register_parameter("rotation", rotation)
         self.register_parameter("translation", translation)
-        self.register_parameter("frustum_max", frustum_max)
-        self.register_parameter("frustum_min", frustum_min)
+        self.register_buffer("frustum_max", frustum_max)
+        self.register_buffer("frustum_min", frustum_min)
 
 
     def get_transform(self):
@@ -145,6 +144,7 @@ class OrthographicCameraTorch(nn.Module):
 
 
     def forward(self, points, image_size=[512, 512]):
+        aspect_ratio = image_size[0] / image_size[1]
         points_shape = points.shape
         points_reshape = points.reshape((1,points.shape[0], 3)).to(device=self.device)
         rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(self.rotation).to(device=self.device)
@@ -160,9 +160,83 @@ class OrthographicCameraTorch(nn.Module):
                 max_x=self.frustum_max[2],
                 min_x=self.frustum_min[2],
                 )
-        # transform = pytorch3d.transforms.Transform3d().rotate(rotation_mat).scale(self.scale).translate(self.translation).to(device=self.device)
-        projected_points = render_camera.transform_points(points_reshape, image_size=image_size)
-        # projected_points = transform.transform_points(points_reshape).reshape(points_shape[0], 3)[:,:2]
+
+        projected_points = render_camera.transform_points_screen(points_reshape, image_size=image_size)
         projected_points = projected_points.reshape(points_shape[0], 3)[:,:2]
         return projected_points
 
+
+class PerspectiveCameraTorch(nn.Module):
+    """Perspective camera model"""
+    FOCAL_LENGTH = 1
+
+    def __init__(self):
+        super(OrthographicCameraTorch, self).__init__()
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.camera_type = "orthographic"
+
+        # register scale, rotation and translation parameters
+        scale = torch.ones((1, 3), device=self.device)
+        rotation = torch.randn((1, 3), device=self.device)
+        translation = torch.randn((1, 3), device=self.device)
+
+        scale = nn.Parameter(scale, requires_grad=True)
+        rotation = nn.Parameter(rotation, requires_grad=True)
+        translation = nn.Parameter(translation, requires_grad=True)
+
+        self.register_parameter("scale", scale)
+        self.register_parameter("rotation", rotation)
+        self.register_parameter("translation", translation)
+
+        # register focal length
+        """
+        focal_length_x = None
+        focal_length_y = None
+        focal_length_x = torch.Tensor(
+                [self.FOCAL_LENGTH if focal_length_x is None else focal_length_x]
+                )
+        focal_length_y = torch.Tensor(
+                [self.FOCAL_LENGTH if focal_length_y is None else focal_length_y]
+                )
+
+        focal_length_x = nn.Parameter(focal_length_x, requires_grad=True)
+        focal_length_y = nn.Parameter(focal_length_y, requires_grad=True)
+        self.register_parameter("focal_length_x", focal_length_x)
+        self.register_parameter("focal_length_y", focal_length_y)
+        """
+
+        focal_length = torch.Tensor(
+                [self.FOCAL_LENGTH if focal_length_x is None else focal_length_x,
+                    self.FOCAL_LENGTH if focal_length_y is None else focal_length_y]
+                )
+        focal_length = nn.Parameter(focal_length, requires_grad=True)
+        self.register_parameter("focal_length", focal_length)
+
+        # register center
+        center = torch.zeros([2])
+        center = nn.Parameter(center, requires_grad=True)
+        self.register_parameter('center', center)
+
+
+    def get_transform(self):
+        rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(self.rotation)
+        return pytorch3d.transforms.Transform3d().rotate(rotation_mat).scale(self.scale).translate(self.translation)
+
+
+    def forward(self, points, image_size=[512, 512]):
+        aspect_ratio = image_size[0] / image_size[1]
+        points_shape = points.shape
+        points_reshape = points.reshape((1,points.shape[0], 3)).to(device=self.device)
+        rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(self.rotation).to(device=self.device)
+
+        render_camera = pytorch3d.renderer.cameras.PerspectiveCameras(
+                R=rotation_mat,
+                T=self.translation,
+                focal_length=
+                pricipal_point=self.center
+                device=self.device,
+                )
+
+        projected_points = render_camera.transform_points_screen(points_reshape, image_size=image_size)
+        projected_points = projected_points.reshape(points_shape[0], 3)[:,:2]
+        return projected_points

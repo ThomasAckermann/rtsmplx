@@ -14,7 +14,9 @@ class ModelLoss(nn.Module):
         self.register_buffer("elbow_knee_weight", elbow_knee_weight.to(device=self.device))
         previous_image_weight = 1e-2 * torch.ones(1)
         self.register_buffer("previous_image_weight", previous_image_weight.to(device=self.device))
-        silhouette_weight = 1e-2 * torch.ones(1)
+        previous_cam_weight = 1e-1 * torch.ones(1)
+        self.register_buffer("previous_cam_weight", previous_cam_weight.to(device=self.device))
+        silhouette_weight = 1 * torch.ones(1) # 1e-2
         self.register_buffer("silhouette_weight", silhouette_weight.to(device=self.device))
 
 
@@ -23,11 +25,23 @@ class ModelLoss(nn.Module):
         l2loss = nn.MSELoss()
         return l2loss(body_pose, previous_pose)
 
+    def previous_cam_prior(self, new_camera, old_camera):
+        l2loss = nn.MSELoss()
+        cam_loss = (
+                l2loss(new_camera.rotation, old_camera.rotation.detach())
+                + l2loss(new_camera.translation, old_camera.translation.detach())
+                + l2loss(new_camera.rotation, old_camera.scale.detach())
+                )
+
+        return cam_loss
+
     def silhouette_loss(self, silhouette_image, silhouette_prediction):
         silhouette_image = silhouette_image / 255
         silhouette_prediction = silhouette_prediction / 255
         img_shape = silhouette_image.shape
-        silhouette_prediction = silhouette_prediction[:,:,:,:3].reshape(img_shape)
+        silhouette_prediction = silhouette_prediction.reshape(img_shape)[:,:,0].to(dtype=torch.float)
+        silhouette_image = silhouette_image[:,:,0].to(dtype=torch.float)
+
         lossf = nn.MSELoss(reduction="mean")
         sil_loss = lossf(silhouette_image, silhouette_prediction)
         return sil_loss
@@ -70,7 +84,7 @@ class ModelLoss(nn.Module):
     def body_pose_prior(self, body_pose):
         return torch.linalg.norm(body_pose).to(device=self.device)
 
-    def forward(self, body_pose, joints_2d, landmarks_2d, previous_model=None, silhouette_image=None, silhouette_prediction=None):
+    def forward(self, body_pose, joints_2d, landmarks_2d, camera, previous_model=None, previous_cam=None, silhouette_image=None, silhouette_prediction=None):
         pose_loss = self.pose_loss(joints_2d, landmarks_2d)
         face_loss = 0.0
         hands_loss = 0.0
@@ -85,11 +99,15 @@ class ModelLoss(nn.Module):
         if previous_model:
             previous_image_prior = self.previous_image_prior(body_pose, previous_model)
             loss_val = loss_val + self.previous_image_weight * previous_image_prior
+        if previous_cam:
+            previous_cam_prior = self.previous_cam_prior(camera, previous_cam)
+            loss_val = loss_val + self.previous_cam_weight * previous_cam_prior
         if (silhouette_image != None) and (silhouette_prediction != None):
             silhouette_loss = self.silhouette_loss(silhouette_image, silhouette_prediction)
             loss_val = loss_val + self.silhouette_weight * silhouette_loss
-        if previous_model:
-            print("previous_image_loss", previous_image_prior)
+        #if previous_model:
+        #    print("previous_image_loss", previous_image_prior)
+        #    print("previous_cam_loss", previous_cam_prior)
 
         # if pen_loss:
         # pen_loss = self.interpenetration_loss(self.search_tree, self.pen_distance, self.filter_faces)
