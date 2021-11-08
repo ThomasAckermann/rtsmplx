@@ -1,4 +1,4 @@
-import torch
+import torc0*h
 import torch.nn as nn
 
 
@@ -8,15 +8,15 @@ class ModelLoss(nn.Module):
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         pose_weight = 1 * torch.ones(1)
         self.register_buffer("pose_weight", pose_weight.to(device=self.device))
-        pose_prior_weight = 5e-3 * torch.ones(1)
+        pose_prior_weight = 0* 5e-3 * torch.ones(1)
         self.register_buffer("pose_prior_weight", pose_prior_weight.to(device=self.device))
-        elbow_knee_weight = 5e-3 * torch.ones(1)
+        elbow_knee_weight = 0*5e-3 * torch.ones(1)
         self.register_buffer("elbow_knee_weight", elbow_knee_weight.to(device=self.device))
-        previous_image_weight = 1e-2 * torch.ones(1)
+        previous_image_weight = 0*1e-2 * torch.ones(1)
         self.register_buffer("previous_image_weight", previous_image_weight.to(device=self.device))
-        previous_cam_weight = 1e-1 * torch.ones(1)
+        previous_cam_weight = 0*1e-1 * torch.ones(1)
         self.register_buffer("previous_cam_weight", previous_cam_weight.to(device=self.device))
-        silhouette_weight = 1 * torch.ones(1) # 1e-2
+        silhouette_weight = 0*1 * torch.ones(1) # 1e-2
         self.register_buffer("silhouette_weight", silhouette_weight.to(device=self.device))
 
 

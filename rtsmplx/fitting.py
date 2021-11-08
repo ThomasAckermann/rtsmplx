@@ -60,7 +60,12 @@ def opt_step(
         joints = body_model.get_joints(body_pose=body_pose)
         joints = joints[pose_mapping[:, 0]]
         joints_3d = joints
+        if idx == 50:
+            print("before", joints_3d)
         pose_prediction = ocam.forward(joints, image_size=image_size).to(device=device)
+        if idx == 50:
+            print("after", pose_prediction)
+
 
         if face == True:
             bary_coords = body_model.bary_coords

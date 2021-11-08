@@ -112,7 +112,6 @@ class OrthographicCameraTorch(nn.Module):
 
     def __init__(self):
         super(OrthographicCameraTorch, self).__init__()
-        FOCAL_LENGTH=0.026
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self.camera_type = "orthographic"
 
@@ -126,13 +125,17 @@ class OrthographicCameraTorch(nn.Module):
         frustum_max[0] = 100.
         frustum_min[0] = 1.
 
-        scale = nn.Parameter(rotation, requires_grad=True)
+        scale = nn.Parameter(scale, requires_grad=True)
         rotation = nn.Parameter(rotation, requires_grad=True)
         translation = nn.Parameter(translation, requires_grad=True)
+        frustum_max = nn.Parameter(frustum_max, requires_grad=True)
+        frustum_min = nn.Parameter(frustum_min, requires_grad=True)
 
         self.register_parameter("scale", scale)
         self.register_parameter("rotation", rotation)
         self.register_parameter("translation", translation)
+        self.register_buffer("frustum_max", frustum_max)
+        self.register_buffer("frustum_min", frustum_min)
 
 
     def get_transform(self):
@@ -140,21 +143,26 @@ class OrthographicCameraTorch(nn.Module):
         return pytorch3d.transforms.Transform3d().rotate(rotation_mat).scale(self.scale).translate(self.translation)
 
 
-    def forward(self, points, image_size=[512, 512], focal_length=0.026):
-        focal_length=0.00026
+    def forward(self, points, image_size=[512, 512]):
         aspect_ratio = image_size[0] / image_size[1]
         points_shape = points.shape
-        points_reshape = points.reshape((1,points.shape[0], 3)).to(device=self.device) * self.scale
+        points_reshape = points.reshape((1,points.shape[0], 3)).to(device=self.device)
         rotation_mat = pytorch3d.transforms.axis_angle_to_matrix(self.rotation).to(device=self.device)
-        render_camera = pytorch3d.renderer.cameras.OrthographicCameras(
+        print(self.scale)
+        render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
                 R=rotation_mat,
                 T=self.translation,
-                focal_length=focal_length,
-                image_size=image_size,
                 device=self.device,
+                scale_xyz=self.scale,
+                zfar=self.frustum_max[0],
+                znear=self.frustum_min[0],
+                max_y=self.frustum_max[1],
+                min_y=self.frustum_min[1],
+                max_x=self.frustum_max[2],
+                min_x=self.frustum_min[2],
                 )
 
-        projected_points = render_camera.transform_points_screen(points_reshape, image_size=image_size)[0]
+        projected_points = render_camera.transform_points_screen(points_reshape, image_size=image_size)
         projected_points = projected_points.reshape(points_shape[0], 3)[:,:2]
         return projected_points
 
