@@ -60,12 +60,7 @@ def opt_step(
         joints = body_model.get_joints(body_pose=body_pose)
         joints = joints[pose_mapping[:, 0]]
         joints_3d = joints
-        if idx == 50:
-            print("before", joints_3d)
         pose_prediction = ocam.forward(joints, image_size=image_size).to(device=device)
-        if idx == 50:
-            print("after", pose_prediction)
-
 
         if face == True:
             bary_coords = body_model.bary_coords
@@ -227,7 +222,7 @@ def opt_loop(
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
     face_image_landmarks = None
     if cam_type == "perspective":
-        ocam = cam.PerspectiveCameraTorch().to(device=device)
+        ocam = cam.PerspectiveCamera().to(device=device)
     else:
         ocam = cam.OrthographicCameraTorch().to(device=device)
     model_loss = rtsmplx.loss.ModelLoss()
@@ -242,72 +237,9 @@ def opt_loop(
 
     idx = 0
     print("Start Optimizing Camera")
-    opt = optimizer(list(ocam.parameters()) + list(model_loss.parameters()), lr=lr)
+    opt = optimizer(list(ocam.parameters()) + list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
     body_model, ocam, idx = run(
-            int(num_runs / 4),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            vposer,
-            model_loss,
-            image_size=image_size,
-            face=face,
-            hands=hands,
-            lr=lr,
-            print_every=print_every,
-            writer=writer,
-            idx=idx,
-            interpenetration=interpenetration,
-            )
-    opt = optimizer(list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
-    print("Start Optimizing Body Pose")
-    body_model, ocam, idx = run(
-            int(num_runs / 4),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            vposer,
-            model_loss,
-            image_size=image_size,
-            face=face,
-            hands=hands,
-            lr=lr,
-            print_every=print_every,
-            writer=writer,
-            idx=idx,
-            interpenetration=interpenetration,
-            )
-    print("Start Optimizing Camera")
-    opt = optimizer(list(ocam.parameters()) + list(model_loss.parameters()), lr=lr)
-    body_model, ocam, idx = run(
-            int(num_runs / 4),
-            landmarks,
-            pose_image_landmarks,
-            face_image_landmarks,
-            body_model,
-            opt,
-            ocam,
-            vposer,
-            model_loss,
-            image_size=image_size,
-            face=face,
-            hands=hands,
-            lr=lr,
-            print_every=print_every,
-            writer=writer,
-            idx=idx,
-            interpenetration=interpenetration,
-            )
-    opt = optimizer(list(body_model.parameters()) + list(model_loss.parameters()), lr=lr)
-    print("Start Optimizing Body Pose")
-    body_model, ocam, idx = run(
-            int(num_runs / 4),
+            int(num_runs),
             landmarks,
             pose_image_landmarks,
             face_image_landmarks,
@@ -358,7 +290,7 @@ def video_opt_loop(
     # face_image_landmarks = landmarks.face_landmarks()[17:, :]
     face_image_landmarks = None
     if cam_type == "perspective":
-        ocam = cam.PerspectiveCameraTorch().to(device=device)
+        ocam = cam.PerspectiveCamera().to(device=device)
     else:
         ocam = cam.OrthographicCameraTorch().to(device=device)
     model_loss = rtsmplx.loss.ModelLoss()

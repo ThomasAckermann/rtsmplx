@@ -71,11 +71,12 @@ def render_trimesh_perspective_torch(trimesh, ocam, image_size=[512,512]):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
     T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
-    focal_length = ocam.focal_length.deatch()
-    principal_point = ocam.center.detach()
-    aspect_ratio = image_size[0] / image_size[1]
+    T = T.reshape(1,3)
+    focal_length = torch.Tensor([ocam.focal_length_x.detach(), ocam.focal_length_y.detach()]).reshape(1,2)
+    principal_point = ocam.center.detach().reshape(1,2)
+    # image_size = torch.Tensor(image_size).reshape(1,2)
 
-    render_camera = pytorch3d.renderer.cameras.FoVPerspectiveCameras(
+    render_camera = pytorch3d.renderer.cameras.PerspectiveCameras(
             principal_point=principal_point,
             focal_length = focal_length,
             R=R,

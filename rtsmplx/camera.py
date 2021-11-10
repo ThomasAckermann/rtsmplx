@@ -46,20 +46,24 @@ class OrthographicCamera(nn.Module):
 class PerspectiveCamera(nn.Module):
     """Perspective camera model"""
 
-    FOCAL_LENGTH = 1
+    FOCAL_LENGTH = 5000
 
-    def __init__(self, focal_length_x=None, focal_length_y=None):
+    def __init__(self, focal_length_x=None, focal_length_y=None, batch_size=1):
         super(PerspectiveCamera, self).__init__()
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.batch_size = batch_size
         # register rotation and translation parameters
         rotation = torch.zeros(3)
         translation = torch.zeros((3,1))
+        scale = torch.ones(3)
 
         rotation = nn.Parameter(rotation, requires_grad=True)
         translation = nn.Parameter(translation, requires_grad=True)
+        scale = nn.Parameter(scale, requires_grad=True)
 
         self.register_parameter("rotation", rotation)
         self.register_parameter("translation", translation)
+        self.register_parameter("scale", scale)
 
         # register focal length
 
@@ -74,8 +78,8 @@ class PerspectiveCamera(nn.Module):
 
         focal_length_x = nn.Parameter(focal_length_x, requires_grad=True)
         focal_length_y = nn.Parameter(focal_length_y, requires_grad=True)
-        self.register_parameter("focal_length_x", focal_length_x)
-        self.register_parameter("focal_length_y", focal_length_y)
+        self.register_buffer("focal_length_x", focal_length_x)
+        self.register_buffer("focal_length_y", focal_length_y)
 
         # register center
         center = torch.zeros([2])
@@ -84,6 +88,9 @@ class PerspectiveCamera(nn.Module):
 
 
     def forward(self, points, image_size=[512,512]):
+        points = points.to(device=self.device)
+        scale_mat = torch.diag(self.scale).to(device=self.device)
+        points = torch.einsum("ij, kj->ki", scale_mat, points)
         points_shape = points.shape
         points_reshape = torch.ones([points.shape[0], 4], device=self.device)
         points_reshape[:, :3] = points
