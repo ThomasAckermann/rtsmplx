@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import Dataset
 import cv2
 import rtsmplx.landmarks as lm
-import json
+import pytorch3d.io
 
 
 class ImageDataset(Dataset):
@@ -66,11 +66,8 @@ class EvaluationDataset(Dataset):
     def __getitem__(self, index):
         image_path = os.path.join(self.image_dir, self.image_paths[index])
         ground_truth_path = os.path.join(
-                self.ground_truth_dir, self.image_paths[index].replace("img.jpg", "2Djnt.json")
+                self.ground_truth_dir, self.image_paths[index].replace("img.jpg", "scan.obj")
                 )
-
-        with open(ground_truth_path) as f:
-            ground_truth = json.load(f)
 
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -78,6 +75,7 @@ class EvaluationDataset(Dataset):
         landmarks = lm.Landmarks(image, head=self.head, hands=self.hands)
         height, width, channels = image.shape
         image_size = [height, width]
+        ground_truth = pytorch3d.io.load_obj(ground_truth_path)
         return (image, landmarks, image_size, ground_truth)
 
 

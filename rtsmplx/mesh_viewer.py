@@ -11,19 +11,19 @@ from pytorch3d.structures import Meshes
 from pytorch3d.vis.plotly_vis import AxisArgs, plot_batch_individually, plot_scene
 from pytorch3d.vis.texture_vis import texturesuv_image_matplotlib
 from pytorch3d.renderer import (
-        look_at_view_transform,
-        FoVPerspectiveCameras,
-        PointLights,
-        DirectionalLights,
-        Materials,
-        RasterizationSettings,
-        MeshRenderer,
-        MeshRasterizer,
-        SoftPhongShader,
-        SoftSilhouetteShader,
-        TexturesUV,
-        TexturesVertex
-        )
+    look_at_view_transform,
+    FoVPerspectiveCameras,
+    PointLights,
+    DirectionalLights,
+    Materials,
+    RasterizationSettings,
+    MeshRenderer,
+    MeshRasterizer,
+    SoftPhongShader,
+    SoftSilhouetteShader,
+    TexturesUV,
+    TexturesVertex,
+)
 
 
 def render_trimesh(tri_mesh):
@@ -34,9 +34,9 @@ def render_trimesh(tri_mesh):
 
 
 def render_trimesh_orthographic(
-        tri_mesh, ocam, xmag=1, ymag=1.0, intensity=1, imgh=400, imgw=400, offset=1
-        ):
-    device="cpu"
+    tri_mesh, ocam, xmag=1, ymag=1.0, intensity=1, imgh=400, imgw=400, offset=1
+):
+    device = "cpu"
     mesh = pyrender.Mesh.from_trimesh(tri_mesh)
     scene = pyrender.Scene(ambient_light=[0.3, 0.3, 0.3, 1.0])
     scene.add(mesh)
@@ -67,131 +67,148 @@ def render_trimesh_no_transform(trimesh, xmag=1.0, ymag=1.0, imgh=400, imgw=400)
     return color, depth
 
 
-def render_trimesh_perspective_torch(trimesh, ocam, image_size=[512,512]):
+def render_trimesh_perspective_torch(trimesh, ocam, image_size=[512, 512]):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
-    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
-    T = T.reshape(1,3)
-    focal_length = torch.Tensor([ocam.focal_length_x.detach(), ocam.focal_length_y.detach()]).reshape(1,2)
-    principal_point = ocam.center.detach().reshape(1,2)
+    T, R = utils.get_torch_trans_format(
+        ocam.translation.detach(), ocam.rotation.detach()
+    )
+    T = T.reshape(1, 3)
+    focal_length = torch.Tensor(
+        [ocam.focal_length_x.detach(), ocam.focal_length_y.detach()]
+    ).reshape(1, 2)
+    principal_point = ocam.center.detach().reshape(1, 2)
     # image_size = torch.Tensor(image_size).reshape(1,2)
 
     render_camera = pytorch3d.renderer.cameras.PerspectiveCameras(
-            principal_point=principal_point,
-            focal_length = focal_length,
-            R=R,
-            T=T,
-            image_size=image_size,
-            device=device
-            )
+        principal_point=principal_point,
+        focal_length=focal_length,
+        R=R,
+        T=T,
+        image_size=image_size,
+        device=device,
+    )
     raster_settings = RasterizationSettings(
-            image_size=image_size,
-            blur_radius=0.0,
-            faces_per_pixel=1,
-            )
+        image_size=image_size,
+        blur_radius=0.0,
+        faces_per_pixel=1,
+    )
 
     lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
     renderer = MeshRenderer(
-            rasterizer=MeshRasterizer(
-                cameras=render_camera,
-                raster_settings=raster_settings
-                ),
-            shader=SoftPhongShader(
-                device=device,
-                cameras=render_camera,
-                lights=lights
-                )
-            )
+        rasterizer=MeshRasterizer(
+            cameras=render_camera, raster_settings=raster_settings
+        ),
+        shader=SoftPhongShader(device=device, cameras=render_camera, lights=lights),
+    )
 
     image = renderer(mesh)
     return image
 
 
-def render_trimesh_orthographic_torch(trimesh, ocam, image_size=512, zfar=100, znear=1.0, max_y=1.0, min_y=-1.0, max_x=1.0, min_x=-1.0,):
+def render_trimesh_orthographic_torch(
+    trimesh,
+    ocam,
+    image_size=512,
+    zfar=100,
+    znear=1.0,
+    max_y=1.0,
+    min_y=-1.0,
+    max_x=1.0,
+    min_x=-1.0,
+):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
-    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    T, R = utils.get_torch_trans_format(
+        ocam.translation.detach(), ocam.rotation.detach()
+    )
     T.requires_grad = False
     R.requires_grad = False
-    scale = ocam.scale.reshape((1,3)).detach()
+    scale = ocam.scale.reshape((1, 3)).detach()
     frustum_max = ocam.frustum_max.detach()
     frustum_min = ocam.frustum_min.detach()
 
-
     render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
-            R=R,
-            T=T,
-            device=device,
-            zfar=frustum_max[0],
-            znear=frustum_min[0],
-            max_y=frustum_max[1],
-            min_y=frustum_min[1],
-            max_x=frustum_max[2],
-            min_x=frustum_min[2],
-            )
+        R=R,
+        T=T,
+        device=device,
+        zfar=frustum_max[0],
+        znear=frustum_min[0],
+        max_y=frustum_max[1],
+        min_y=frustum_min[1],
+        max_x=frustum_max[2],
+        min_x=frustum_min[2],
+    )
     raster_settings = RasterizationSettings(
-            image_size=image_size,
-            blur_radius=0.0,
-            faces_per_pixel=1,
-            )
+        image_size=image_size,
+        blur_radius=0.0,
+        faces_per_pixel=1,
+    )
 
     lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
     renderer = MeshRenderer(
-            rasterizer=MeshRasterizer(
-                cameras=render_camera,
-                raster_settings=raster_settings
-                ),
-            shader=SoftPhongShader(
-                device=device,
-                cameras=render_camera,
-                lights=lights
-                )
-            )
+        rasterizer=MeshRasterizer(
+            cameras=render_camera, raster_settings=raster_settings
+        ),
+        shader=SoftPhongShader(device=device, cameras=render_camera, lights=lights),
+    )
 
     image = renderer(mesh, cameras=render_camera, lights=lights)
     return image
 
 
-def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znear=1.0, max_y=1.0, min_y=-1.0, max_x=1.0, min_x=-1.0,):
+def render_silhouette_orthographic(
+    trimesh,
+    ocam,
+    image_size=512,
+    zfar=100,
+    znear=1.0,
+    max_y=1.0,
+    min_y=-1.0,
+    max_x=1.0,
+    min_x=-1.0,
+):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
-    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    T, R = utils.get_torch_trans_format(
+        ocam.translation.detach(), ocam.rotation.detach()
+    )
     scale = ocam.scale.detach()
     sigma = 1e-4
     frustum_max = ocam.frustum_max.detach()
     frustum_min = ocam.frustum_min.detach()
 
-
     render_camera = pytorch3d.renderer.cameras.FoVOrthographicCameras(
-            R=R,
-            T=T,
-            device=device,
-            zfar=frustum_max[0],
-            znear=frustum_min[0],
-            max_y=frustum_max[1],
-            min_y=frustum_min[1],
-            max_x=frustum_max[2],
-            min_x=frustum_min[2],
-            )
+        R=R,
+        T=T,
+        device=device,
+        zfar=frustum_max[0],
+        znear=frustum_min[0],
+        max_y=frustum_max[1],
+        min_y=frustum_min[1],
+        max_x=frustum_max[2],
+        min_x=frustum_min[2],
+    )
 
     raster_settings = RasterizationSettings(
-            image_size=image_size,
-            blur_radius=np.log(1. / 1e-4 -1. )*sigma,
-            faces_per_pixel=50,
-            )
+        image_size=image_size,
+        blur_radius=np.log(1.0 / 1e-4 - 1.0) * sigma,
+        faces_per_pixel=50,
+    )
     lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
 
     renderer = MeshRenderer(
-            rasterizer=MeshRasterizer(
-                cameras=render_camera,
-                raster_settings=raster_settings
-                ),
-            shader=SoftSilhouetteShader()
-            )
+        rasterizer=MeshRasterizer(
+            cameras=render_camera, raster_settings=raster_settings
+        ),
+        shader=SoftSilhouetteShader(),
+    )
 
     image = renderer(mesh, cameras=render_camera, lights=lights)
     image_shape = image.shape
-    image[:, : , :, :3] = image[:, : , :, :3] - image[:, : , :, 3].reshape(image_shape[0], image_shape[1], image_shape[2], 1)
+    image[:, :, :, :3] = image[:, :, :, :3] - image[:, :, :, 3].reshape(
+        image_shape[0], image_shape[1], image_shape[2], 1
+    )
     image = image[:, :, :, :3]
     return image
 
@@ -199,39 +216,58 @@ def render_silhouette_orthographic(trimesh, ocam, image_size=512, zfar=100, znea
 def render_silhouette_perspective(trimesh, ocam, image_size=[512, 512]):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     mesh = utils.trimesh_to_torch(trimesh).to(device=device)
-    T, R = utils.get_torch_trans_format(ocam.translation.detach(), ocam.rotation.detach())
+    T, R = utils.get_torch_trans_format(
+        ocam.translation.detach(), ocam.rotation.detach()
+    )
     focal_length = ocam.focal_length.detach()
     principal_point = ocam.center.detach()
     aspect_ratio = image_size[0] / image_size[1]
     sigma = 1e-4
 
-
     render_camera = pytorch3d.renderer.cameras.PerspectiveCameras(
-            focal_length=focal_length,
-            principal_point=center,
-            R=R,
-            T=T,
-            aspect_ratio=aspect_ratio,
-            device=device,
-            )
+        focal_length=focal_length,
+        principal_point=center,
+        R=R,
+        T=T,
+        aspect_ratio=aspect_ratio,
+        device=device,
+    )
 
     raster_settings = RasterizationSettings(
-            image_size=image_size,
-            blur_radius=np.log(1. / 1e-4 -1. )*sigma,
-            faces_per_pixel=50,
-            )
+        image_size=image_size,
+        blur_radius=np.log(1.0 / 1e-4 - 1.0) * sigma,
+        faces_per_pixel=50,
+    )
     lights = PointLights(location=[[0.0, 0.0, -3.0]], device=device)
 
     renderer = MeshRenderer(
-            rasterizer=MeshRasterizer(
-                cameras=render_camera,
-                raster_settings=raster_settings
-                ),
-            shader=SoftSilhouetteShader()
-            )
+        rasterizer=MeshRasterizer(
+            cameras=render_camera, raster_settings=raster_settings
+        ),
+        shader=SoftSilhouetteShader(),
+    )
 
     image = renderer(mesh, cameras=render_camera, lights=lights)
     image_shape = image.shape
-    image[:, : , :, :3] = image[:, : , :, :3] - image[:, : , :, 3].reshape(image_shape[0], image_shape[1], image_shape[2], 1)
+    image[:, :, :, :3] = image[:, :, :, :3] - image[:, :, :, 3].reshape(
+        image_shape[0], image_shape[1], image_shape[2], 1
+    )
     image = image[:, :, :, :3]
     return image
+
+
+def visualize_perspective(mesh, camera):
+    material = pyrender.MetallicRoughnessMaterial(
+        metallicFactor=0.0, alphaMode="OPAQUE", baseColorFactor=(1.0, 1.0, 0.9, 1.0)
+    )
+    mesh = pyrender.Mesh.from_trimesh(out_mesh, material=material)
+    scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 0.0], ambient_light=(0.3, 0.3, 0.3))
+    scene.add(mesh, "mesh")
+    camera_center = camera.center.deatch().cpu().numpy()
+    camera_transl = camera.translation.detach().cpu().numpy()
+    # camera_focal_length_x =
+    # camera_focal_length_y =
+    camera_transl[0] *= -1.0
+    camera_pose = np.eye(4)
+    camera_pose[:3, 3] = camera_transl
+    camera = pyrender.camera.IntrinsicCamera(fx)
