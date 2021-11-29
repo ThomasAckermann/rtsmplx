@@ -371,4 +371,3 @@ def plot_landmarks(ocam, body_model, image_landmarks, image_size=[512,512]):
 
 
 if __name__ == "__main__":
-    pass

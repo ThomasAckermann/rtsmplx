@@ -48,8 +48,6 @@ def test_model():
         )
         mesh = rtsmplx.fitting.get_mesh(body_model, body_pose)
         ground_truth_mesh = Dataset[i][3][0]
-        print(ground_truth_mesh)
-        print(dir(ground_truth_mesh))
         vertex_distances[i] = vertex_diff(mesh, ground_truth_mesh)
 
     mean_v2v = torch.mean(vertex_distances)
@@ -60,6 +58,11 @@ def test_model():
 def vertex_diff(mesh_prediction, mesh_test):
     vertex_diff = mesh_prediction - mesh_test
     return vertex_diff
+
+
+def joint_diff(joint_prediction, joint_test):
+    joint_diff = joint_prediction - joint_test
+    return joint_diff
 
 
 if __name__ == "__main__":
